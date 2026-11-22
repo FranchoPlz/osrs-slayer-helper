@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { imgUrl, itemOf, mapTiles, parseInventory, parseMasterPage, parseRecommendedEquipment, parseSlayerEquipment, placeEntrance } from '../src/lib/wikiparse.js';
-import { bringItems, recommendStyle, transportOptions } from '../src/lib/advice.js';
+import { bringItems, locationPointers, recommendStyle, transportOptions } from '../src/lib/advice.js';
 
 const MASTER_TABLE = `{| class="wikitable sortable" style="text-align:center;"
 !Monster
@@ -209,5 +209,26 @@ describe('gear and inventory', () => {
     expect(recommendStyle('Abyssal Demon (Slayer Tower)', demon).style).toBe('magic');
     expect(recommendStyle('Magic Axe', { defences: { Stab: 0, Slash: 0, Crush: 0, Magic: 0, Ranged: 0 } }).style).toBe('melee');
     expect(recommendStyle('Hydra (Karuulm)', { defences: { Stab: 160, Slash: 160, Crush: 160, Magic: 160, Ranged: 0 } }).style).toBe('ranged');
+  });
+});
+
+describe('locationPointers', () => {
+  test('cuts bullets to their first sentence with a keyword icon, flags left-out text', () => {
+    const notes = '• Requires starting Sins of the Father.\n• Close to a bank. Also an altar nearby.\n• Use a goading potion here.\n• Fourth point.';
+    const { points, cut } = locationPointers(notes);
+    expect(points).toEqual([
+      { text: 'Requires starting Sins of the Father.', icon: 'Quest point icon.png' },
+      { text: 'Close to a bank.', icon: 'Bank icon.png' },
+      { text: 'Use a goading potion here.', icon: 'Goading potion(4).png' },
+    ]);
+    expect(cut).toBe(true);
+  });
+
+  test('splits plain text into sentences and keeps short notes whole', () => {
+    expect(locationPointers('This area is in the Wilderness. Ankou roam here.')).toEqual({
+      points: [{ text: 'This area is in the Wilderness.', icon: 'Skull (status) icon.png' }, { text: 'Ankou roam here.', icon: undefined }],
+      cut: false,
+    });
+    expect(locationPointers('')).toEqual({ points: [], cut: false });
   });
 });

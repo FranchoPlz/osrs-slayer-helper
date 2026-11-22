@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { imgUrl, isSurface, mapTiles, wikiUrl, placePage } from '../lib/wikiparse.js';
-import { STYLE_TAB, tierFor, locationMatches, transportOptions } from '../lib/advice.js';
-import { ICON, SLOT_IMG } from '../lib/icons.js';
+import { STYLE_TAB, tierFor, locationMatches, locationPointers, transportOptions } from '../lib/advice.js';
+import { ICON, SKILL_IMG, SLOT_IMG } from '../lib/icons.js';
 import { livePlace, mapVersion } from '../store.js';
 
 /**
@@ -103,11 +103,9 @@ export function LocationPick({ locations, current, onPick }) {
     <Card title="Where" icon={ICON.map} right={locations.length > 1 && (
       <button className="mini" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? 'done' : `change (${locations.length})`}</button>
     )}>
-      <div className="best-loc">
-        <strong>{current.name}</strong> <LocFlags l={current} />
-        {current.amount && <span className="muted small">{current.amount.replace(/\n/g, ', ')} spawns</span>}
-      </div>
-      {current.notes && <Prose text={current.notes} />}
+      <div className="best-loc"><strong>{current.name}</strong></div>
+      <LocFacts l={current} />
+      <LocNotes notes={current.notes} />
       {open && (
         <ul className="loc-options">
           {locations.map((l, i) => (
@@ -120,6 +118,38 @@ export function LocationPick({ locations, current, onPick }) {
         </ul>
       )}
     </Card>
+  );
+}
+
+/** Spawns, combat type, cannon, safespot and Wilderness as icon chips */
+function LocFacts({ l }) {
+  const wildy = /wilderness/i.test(`${l.name} ${l.notes}`);
+  return (
+    <div className="loc-facts">
+      {l.amount?.split(/\n+|<\/?br\s*\/?>/i).filter((a) => a.trim()).map((a) => (
+        <span key={a} className="tag"><Icon file={ICON.slayer} alt="" />{/^\d+$/.test(a.trim()) ? `${a.trim()} spawns` : a}</span>
+      ))}
+      {l.multi != null && <span className="tag"><Icon file={l.multi ? ICON.multi : ICON.combat} alt="" />{l.multi ? 'Multicombat' : 'Single combat'}</span>}
+      {l.cannon != null && <span className={`tag ${l.cannon ? '' : 'off'}`}><Icon file={ICON.cannon} alt="" />{l.cannon ? 'Cannon' : 'No cannon'}</span>}
+      {l.safespot === true && <span className="tag"><Icon file={SKILL_IMG.ranged} alt="" />Safespot</span>}
+      {wildy && <span className="tag warn"><Icon file={ICON.wildy} alt="" />Wilderness</span>}
+    </div>
+  );
+}
+
+/** Location notes as a few iconed one-liners; the full Wiki text folds away */
+function LocNotes({ notes }) {
+  const { points, cut } = locationPointers(notes);
+  if (!points.length) return null;
+  return (
+    <>
+      <ul className="pointers">
+        {points.map((p, i) => (
+          <li key={i}><span className="pt-icon">{p.icon ? <Img img={p.icon} alt="" /> : <span className="dot" />}</span><span>{p.text}</span></li>
+        ))}
+      </ul>
+      {cut && <Collapsible title="Full Wiki notes"><Prose text={notes} /></Collapsible>}
+    </>
   );
 }
 

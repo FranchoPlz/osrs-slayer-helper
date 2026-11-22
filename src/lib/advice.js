@@ -113,6 +113,41 @@ export function locationMatches(variant, locName) {
 // Wiki map icon for transport whose own Wiki image is a huge render (quetzal, glider, canoe, ...)
 export const TRANSPORT_ICON = 'Transportation icon.png';
 
+// [pattern, Wiki icon] for a location note; first match wins
+const NOTE_ICONS = [
+  [/wilderness/i, 'Skull (status) icon.png'],
+  [/requir|quest|unlock/i, 'Quest point icon.png'],
+  [/cannon/i, 'Dwarf multicannon.png'],
+  [/goading/i, 'Goading potion(4).png'],
+  [/barrage|burst/i, 'Ice Barrage.png'],
+  [/superior/i, 'Imbued heart.png'],
+  [/bank/i, 'Bank icon.png'],
+  [/altar/i, 'Altar icon.png'],
+  [/teleport|necklace|fairy ring|tablet/i, TRANSPORT_ICON],
+  [/dragonfire|antifire/i, 'Anti-dragon shield.png'],
+  [/aggress|aggro|afk/i, 'Watch.png'],
+  [/multi/i, 'Multicombat.png'],
+  [/drop|loot|profit/i, 'Coins 10000.png'],
+  [/shortcut|agility/i, 'Agility shortcut icon.png'],
+];
+const firstSentence = (s) => s.match(/^.+?[.!?](?=\s+[A-Z(]|$)/)?.[0] || s;
+const clip = (s, n = 100) => (s.length > n ? `${s.slice(0, s.lastIndexOf(' ', n - 3))}…` : s);
+
+/**
+ * Wiki location notes as short pointers: each bullet (or sentence, for plain text) cut to its first sentence,
+ * with an icon picked from its keywords. Returns { points: [{ text, icon? }], cut: whether text was left out }.
+ */
+export function locationPointers(notes, max = 3) {
+  const text = (notes || '').trim();
+  if (!text) return { points: [], cut: false };
+  const parts = text.includes('•')
+    ? text.split('\n').map((l) => l.replace(/^\s*•\s*/, '').trim()).filter(Boolean)
+    : text.split(/(?<=[.!?])\s+(?=[A-Z(])/);
+  const short = parts.map((p) => clip(firstSentence(p)));
+  const points = short.slice(0, max).map((t) => ({ text: t, icon: NOTE_ICONS.find(([re]) => re.test(t))?.[1] }));
+  return { points, cut: parts.length > max || short.some((s, i) => s !== parts[i]) };
+}
+
 // [label, pattern, Wiki icon]
 const TRANSPORTS = [
   ['Fairy ring', /fairy ring/i, 'Fairy ring icon.png'],

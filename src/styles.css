@@ -164,6 +164,17 @@ h4.sub { margin: 12px 0 6px; font-size: .85rem; font-weight: normal; color: var(
 
 .best-loc { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
 .best-loc strong { font-size: 1.05rem; }
+.loc-facts { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.loc-facts .tag { gap: 5px; padding: 3px 8px; font-size: .85rem; }
+.loc-facts .tag img { height: 16px; }
+.loc-facts .tag.off { color: var(--muted); }
+.loc-facts .tag.off img { filter: grayscale(1); opacity: .6; }
+.loc-facts .tag.warn { color: var(--skip); }
+.pointers { list-style: none; margin: 0 0 4px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pointers li { display: flex; align-items: flex-start; gap: 8px; font-size: .9rem; line-height: 1.35; }
+.pt-icon { flex: none; width: 24px; height: 20px; display: grid; place-items: center; }
+.pt-icon img { max-width: 24px; max-height: 20px; }
+.pt-icon .dot { width: 6px; height: 6px; background: var(--gold); transform: rotate(45deg); }
 
 /* ---------- gear ---------- */
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
