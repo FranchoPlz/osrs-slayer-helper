@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { fetchWikitext, fetchImageWidths, parseTaskPage, parseMonsterPage, parseRecommendedEquipment, sectionText, taskPageCandidates, monsterPageCandidates, toPlain, splitSections } from './lib/wikiparse.js';
+import { API, fetchWikitext, fetchImageWidths, parseTaskPage, parseMonsterPage, parseRecommendedEquipment, sectionText, taskPageCandidates, monsterPageCandidates, toPlain, splitSections } from './lib/wikiparse.js';
 
 const KEY = 'slayer-helper:settings:v1';
 
@@ -65,7 +65,11 @@ export function getLive(name) {
 }
 /** Names looked up live in this browser, most recent last */
 export function recentLookups(n = 5) {
-  try { return Object.keys(localStorage).filter((k) => k.startsWith(LIVE)).map((k) => k.slice(LIVE.length)).slice(-n); } catch { return []; }
+  // localStorage key order is unspecified, so order by fetch time
+  try {
+    return Object.keys(localStorage).filter((k) => k.startsWith(LIVE)).map((k) => k.slice(LIVE.length))
+      .map((name) => [name, getLive(name)?.liveAt || '']).sort((a, b) => a[1].localeCompare(b[1])).map(([name]) => name).slice(-n);
+  } catch { return []; }
 }
 
 /** Fetch fresh task + monster + strategies data from the OSRS Wiki for a task/monster name */
@@ -109,9 +113,19 @@ export async function livePlace(page) {
   return { title: pg.title, transport: sectionText(pg.wikitext, /^(transportation|getting there|travel|access|entrances?)/i, 1500) || toPlain(splitSections(pg.wikitext)[0].body).slice(0, 600) };
 }
 
+let mapVer;
+/** Current Wiki map tile version. It changes with game updates and old ones get deleted, so ask the Wiki (1.7 KB). */
+export function mapVersion() {
+  const q = new URLSearchParams({ action: 'parse', text: '{{Map|3222,3218}}', contentmodel: 'wikitext', prop: 'text', format: 'json', formatversion: '2', origin: '*' });
+  mapVer ||= fetch(`${API}?${q}`).then((r) => r.json()).then((j) => j.parse.text.match(/versions\/([^/]+)\/tiles/)[1])
+    .catch((e) => { mapVer = null; throw e; });
+  return mapVer;
+}
+
 // ---------- tiny hash router ----------
 export function useRoute() {
-  const get = () => decodeURIComponent(location.hash.replace(/^#\/?/, '')).split('/');
+  // Decode each part after splitting, so names with "/" survive; a malformed "%" in the URL goes home instead of crashing
+  const get = () => { try { return location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent); } catch { return ['']; } };
   const [route, setRoute] = useState(get);
   useEffect(() => {
     const f = () => { setRoute(get()); window.scrollTo(0, 0); };

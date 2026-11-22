@@ -4,7 +4,24 @@
 export const WIKI = 'https://oldschool.runescape.wiki';
 export const API = `${WIKI}/api.php`;
 export const wikiUrl = (title) => `${WIKI}/w/${encodeURIComponent(title.replace(/ /g, '_'))}`;
-export const mapUrl = (m) => (m ? `https://maps.runescape.wiki/osrs/#4/${m.plane || 0}/${m.mapID ?? 0}/${m.x}/${m.y}` : null);
+
+/**
+ * Wiki map tiles for a W x H px view centred on a {{Map}} spot { x, y, mapID, plane }.
+ * At `zoom` a game tile is 2^zoom px; each 256px tile file is named by plane and tile column/row (row counts north).
+ */
+export function mapTiles(m, version, zoom, W, H) {
+  const ppt = 2 ** zoom, span = 256 / ppt, out = [];
+  for (let i = Math.floor((m.x - W / 2 / ppt) / span); i <= Math.floor((m.x + W / 2 / ppt) / span); i++) {
+    for (let j = Math.floor((m.y - H / 2 / ppt) / span); j <= Math.floor((m.y + H / 2 / ppt) / span); j++) {
+      out.push({
+        src: `https://maps.runescape.wiki/osrs/versions/${version}/tiles/rendered/${m.mapID ?? 0}/${zoom}/${m.plane || 0}_${i}_${j}.png`,
+        left: W / 2 - (m.x - i * span) * ppt,
+        top: H / 2 - ((j + 1) * span - m.y) * ppt,
+      });
+    }
+  }
+  return out;
+}
 
 /**
  * URL of a Wiki image. `img` is a file name or { file, w } (w = original width, from fetchImageWidths).

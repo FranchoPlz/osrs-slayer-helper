@@ -39,7 +39,7 @@ export default function MasterView({ data, settings, evaluation }) {
       <Card title="Tasks" className="flush" right={<span className="small muted">{settings.goal === 'gp' ? 'GP/h' : 'XP/h'}</span>}>
         <ul className="task-list">
           {rows.map((r) => (
-            <li key={r.task} onClick={() => go('task', r.task)} className={r.manual ? 'manual' : ''}>
+            <li key={r.task} className={r.manual ? 'manual' : ''}><a href={`#/task/${encodeURIComponent(r.task)}`}>
               <Portrait img={data.imageFor(r.task)} size={36} />
               <span className="task-name">
                 {r.task}
@@ -47,7 +47,7 @@ export default function MasterView({ data, settings, evaluation }) {
               </span>
               <span className="task-rate">{r.chosen ? fmt.k(rate(r)) : '-'}</span>
               <Verdict action={r.action} />
-            </li>
+            </a></li>
           ))}
         </ul>
       </Card>

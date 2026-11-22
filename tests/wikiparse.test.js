@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { imgUrl, itemOf, parseMasterPage } from '../src/lib/wikiparse.js';
+import { imgUrl, itemOf, mapTiles, parseMasterPage } from '../src/lib/wikiparse.js';
 
 const MASTER_TABLE = `{| class="wikitable sortable" style="text-align:center;"
 !Monster
@@ -97,5 +97,20 @@ describe('imgUrl', () => {
     expect(imgUrl("Kree'arra.png")).toBe("https://oldschool.runescape.wiki/images/Kree'arra.png");
     expect(imgUrl('Protect from Melee (1).png')).toContain('Protect_from_Melee_(1).png');
     expect(imgUrl(null)).toBeNull();
+  });
+});
+
+describe('mapTiles', () => {
+  test('lays tiles out like the Wiki does (Brimhaven Dungeon map: 250px, zoom 0, centred on 2752,3109)', () => {
+    const tiles = mapTiles({ x: 2752, y: 3109, mapID: 0, plane: 0 }, 'v1', 0, 250, 250);
+    const at = (name) => tiles.find((t) => t.src.endsWith(name));
+    expect(tiles).toHaveLength(4);
+    expect(at('/0/0/0_10_12.png')).toMatchObject({ left: -67, top: -94 });
+    expect(at('/0/0/0_11_11.png')).toMatchObject({ left: 189, top: 162 });
+  });
+
+  test('uses the map id, zoom and plane of the spot', () => {
+    expect(mapTiles({ x: 2704, y: 9431, mapID: 46, plane: 1 }, 'v1', 2, 1, 1)[0].src)
+      .toBe('https://maps.runescape.wiki/osrs/versions/v1/tiles/rendered/46/2/1_42_147.png');
   });
 });

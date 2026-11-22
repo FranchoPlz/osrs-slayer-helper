@@ -1,4 +1,4 @@
-// Downloads the community slayer efficiency Google Sheet and converts it to src/data/sheet.json
+// Downloads the community slayer efficiency Google Sheet and converts it to public/data/sheet.json
 // Usage: node scripts/sync-sheet.mjs [path-to-local.xlsx]
 import fs from 'node:fs/promises';
 import path from 'node:path';

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
-  BestLocation, Card, Collapsible, EquipmentSetups, GearPick, GearTiers, Img, Item, LocationList, Portrait, Prose, Stat, Verdict, sortLocations,
+  Card, Collapsible, EquipmentSetups, GearPick, GearTiers, GettingThere, Img, Item, LocationPick, Portrait, Prose, Stat, Verdict, sortLocations,
 } from './ui.jsx';
 import { fmt } from '../lib/engine.js';
 import { prayerFor, requiredItems, weaponHints, ytSearch } from '../lib/advice.js';
 import { ICON, MASTER_IMG, PRAYER_IMG } from '../lib/icons.js';
-import { wikiUrl } from '../lib/wikiparse.js';
+import { placePage, wikiUrl } from '../lib/wikiparse.js';
 import { getLive, go, liveLookup, setOverride, setSettings } from '../store.js';
 
 export default function TaskView({ data, name, settings, evaluation, lookupOnly }) {
@@ -31,6 +31,8 @@ export default function TaskView({ data, name, settings, evaluation, lookupOnly 
   const items = requiredItems(wiki?.infobox?.otherReq, wiki?.intro, wiki?.strategy?.slice(0, 2500));
   const prayers = prayerFor(monster?.attackStyle);
   const locations = sortLocations(wiki?.locations, chosen?.mob.variant);
+  const [pickedLoc, setPickedLoc] = useState(null);
+  const loc = locations.find((l) => l.name === pickedLoc) || locations[0];
   const image = monster?.image || data.imageFor(name);
 
   return (
@@ -74,6 +76,8 @@ export default function TaskView({ data, name, settings, evaluation, lookupOnly 
         </Card>
       )}
 
+      {loc && <LocationPick locations={locations} current={loc} onPick={setPickedLoc} />}
+
       {wiki && (prayers.length > 0 || items.length > 0) && (
         <Card title="Bring" icon={ICON.inventory}>
           <div className="item-list">
@@ -88,26 +92,22 @@ export default function TaskView({ data, name, settings, evaluation, lookupOnly 
         </Card>
       )}
 
-      {locations.length > 0 && (
-        <Card title="Where">
-          <BestLocation l={locations[0]} />
-        </Card>
-      )}
-
       {wiki?.gearTiers?.length > 0 && (
         <Card title="Gear" icon={ICON.equipment} right={<a className="small" href="#/settings">budget: {settings.budget}</a>}>
           <GearPick key={chosen?.mob.variant} sets={wiki.gearTiers} budget={settings.budget} variant={chosen?.mob.variant} />
         </Card>
       )}
 
+      {loc && <GettingThere key={loc.name} l={loc} place={data.wiki?.places?.[placePage(loc.name)]} />}
+
       <Collapsible title="More" className="more">
-        <More data={data} name={name} row={row} wiki={wiki} live={live} settings={settings} locations={locations} refresh={refresh} loading={loading} />
+        <More data={data} name={name} row={row} wiki={wiki} live={live} settings={settings} refresh={refresh} loading={loading} />
       </Collapsible>
     </div>
   );
 }
 
-function More({ data, name, row, wiki, live, settings, locations, refresh, loading }) {
+function More({ data, name, row, wiki, live, settings, refresh, loading }) {
   const monster = wiki?.monster;
   const hints = weaponHints(monster);
   const chosen = row?.chosen;
@@ -137,13 +137,6 @@ function More({ data, name, row, wiki, live, settings, locations, refresh, loadi
             {row.sheetActionNorm && ` · Sheet author: ${row.sheetActionNorm}`}
             {row.points && ` · Mortimer points ${row.points[0]}-${row.points[1]}, XP +${row.xpMod?.[0]}-${row.xpMod?.[1]}%`}
           </p>
-        </section>
-      )}
-
-      {locations.length > 0 && (
-        <section>
-          <h3>Locations and transport</h3>
-          <LocationList locations={locations} places={data.wiki?.places} />
         </section>
       )}
 

@@ -4,11 +4,12 @@ A self-hosted PWA for Old School RuneScape slayer. Type a monster and the task p
 
 - **Do / Skip / Block** for your slayer master, with a one-line reason. Tap "change" to override it for this device.
 - **Best method**: XP/h, GP/h and task time for your settings, plus extend and bracelet tips.
+- **Where**: the location that fits the best method. Tap "change" to pick another one.
 - **Bring**: protection prayer and required slayer items, as icons.
-- **Where**: the best location, with a link to the interactive map.
 - **Gear**: the item for your budget in every slot, laid out like the worn-equipment screen. It opens on the combat style of the best method.
+- **Getting to ...**: opens a Wiki map of the chosen location with a pin, and the Wiki's transport options for it (teleports, fairy rings, routes).
 
-Everything else sits under **More**: all methods compared, every location with transport, monster stats and weaknesses, all gear tiers, example setups, inventory, strategy notes and monster variants.
+Everything else sits under **More**: all methods compared, monster stats and weaknesses, all gear tiers, example setups, inventory, strategy notes and monster variants.
 
 Other tabs:
 

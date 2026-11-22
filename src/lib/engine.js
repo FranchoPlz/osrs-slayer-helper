@@ -4,7 +4,7 @@
 export const norm = (s) =>
   (s || '').toLowerCase().replace(/[^a-z]/g, '').replace(/ies$/, 'y').replace(/s$/, '');
 
-const ALIASES = { abberantspectre: 'aberrantspectre', lizard: 'lizard', tzhaar: 'tzhaar' };
+const ALIASES = { abberantspectre: 'aberrantspectre' };
 const key = (s) => ALIASES[norm(s)] || norm(s);
 
 // Average reward points per task (from the sheet's long-run streak tables)
@@ -42,7 +42,6 @@ export function variantBlocker(v, masterId, s = {}) {
   if (/burst/i.test(v) && !(s.ancients && magic >= 62)) return 'Needs Ancient Magicks + 62 Magic';
   if (/cannon/i.test(v) && !s.cannon) return 'Needs a dwarf multicannon';
   if (isBossVariant(v) && !s.bosses) return 'Boss variants disabled in settings';
-  if (/inferno/i.test(v) && !s.bosses) return 'Boss variants disabled in settings';
   return null;
 }
 

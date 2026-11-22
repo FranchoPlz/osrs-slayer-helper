@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { imgUrl, mapUrl, wikiUrl, placePage } from '../lib/wikiparse.js';
+import { useEffect, useState } from 'react';
+import { imgUrl, mapTiles, wikiUrl, placePage } from '../lib/wikiparse.js';
 import { tierFor, locationMatches } from '../lib/advice.js';
 import { ICON, SLOT_IMG } from '../lib/icons.js';
-import { livePlace } from '../store.js';
+import { livePlace, mapVersion } from '../store.js';
 
 /**
  * Wiki image. `img` is a file name or { file, w }. `size` is the display box in px;
@@ -96,49 +96,77 @@ export function sortLocations(locations, chosenVariant) {
   return [...(locations || [])].sort((a, b) => locationMatches(chosenVariant, b.name) - locationMatches(chosenVariant, a.name));
 }
 
-export function BestLocation({ l }) {
+/** The fight location (best by default); "change" lists every location to pick from */
+export function LocationPick({ locations, current, onPick }) {
+  const [open, setOpen] = useState(false);
   return (
-    <div className="best-loc">
-      <div>
-        <strong>{l.name}</strong> <LocFlags l={l} />
-        {l.notes && <p className="small muted">{l.notes}</p>}
+    <Card title="Where" icon={ICON.map} right={locations.length > 1 && (
+      <button className="mini" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? 'done' : `change (${locations.length})`}</button>
+    )}>
+      <div className="best-loc">
+        <strong>{current.name}</strong> <LocFlags l={current} />
+        {current.amount && <span className="muted small">{current.amount.replace(/\n/g, ', ')} spawns</span>}
       </div>
-      {l.map && <a className="btn" href={mapUrl(l.map)} target="_blank" rel="noreferrer"><Icon file={ICON.map} />Map</a>}
-    </div>
+      {current.notes && <Prose text={current.notes} />}
+      {open && (
+        <ul className="loc-options">
+          {locations.map((l, i) => (
+            <li key={i}>
+              <button className={l === current ? 'on' : ''} onClick={() => { onPick(l.name); setOpen(false); }}>
+                <span>{l.name}</span> <LocFlags l={l} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 
-export function LocationList({ locations, places }) {
-  return (
-    <ul className="locations">
-      {locations.map((l, i) => <LocationItem key={i} l={l} place={places?.[placePage(l.name)]} />)}
-    </ul>
-  );
-}
-
-function LocationItem({ l, place }) {
+/** Map and Wiki transport options for a location, as a card that opens */
+export function GettingThere({ l, place }) {
   const [live, setLive] = useState(null);
   const [loading, setLoading] = useState(false);
+  const page = placePage(l.name);
   const p = live || place;
   return (
-    <li>
-      <div className="loc-head">
-        <strong>{l.name}</strong> <LocFlags l={l} />
-        {l.amount && <span className="muted small">{l.amount} spawns</span>}
-        <span className="spacer" />
-        {l.map && <a href={mapUrl(l.map)} target="_blank" rel="noreferrer">Map</a>}
-        <a href={wikiUrl(placePage(l.name))} target="_blank" rel="noreferrer">Wiki</a>
-      </div>
-      {l.notes && <p className="small muted">{l.notes}</p>}
-      <Collapsible title="How to get there">
-        {p?.transport ? <Prose text={p.transport} /> : <p className="muted">No transport info saved.</p>}
+    <Collapsible title={`Getting to ${l.name}`} className="more">
+      {l.map && <LocationMap map={l.map} />}
+      {p?.transport ? <Prose text={p.transport} /> : <p className="muted">No transport info saved.</p>}
+      <p className="small muted">
+        <a href={wikiUrl(page)} target="_blank" rel="noreferrer">{page} on the Wiki</a>
         {!live && (
-          <button className="link-btn" disabled={loading} onClick={async () => { setLoading(true); try { setLive(await livePlace(placePage(l.name))); } catch { /* offline */ } setLoading(false); }}>
+          <>{' · '}<button className="link-btn" disabled={loading} onClick={async () => { setLoading(true); try { setLive(await livePlace(page)); } catch { /* offline */ } setLoading(false); }}>
             {loading ? 'Loading...' : 'Fetch latest from the Wiki'}
-          </button>
+          </button></>
         )}
-      </Collapsible>
-    </li>
+      </p>
+    </Collapsible>
+  );
+}
+
+// View box the tiles are laid out in; it scales to the card width
+const MAP_W = 480, MAP_H = 270;
+const pct = (n, of) => `${(n / of) * 100}%`;
+
+/** Wiki world map around a location, with a pin on it */
+function LocationMap({ map }) {
+  const [version, setVersion] = useState(null);
+  const [zoom, setZoom] = useState(2);
+  useEffect(() => { mapVersion().then(setVersion, () => {}); }, []);
+  if (!version) return null;
+  return (
+    <div className="loc-map">
+      {mapTiles(map, version, zoom, MAP_W, MAP_H).map((t) => (
+        <img key={t.src} src={t.src} alt="" crossOrigin="anonymous" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+          style={{ left: pct(t.left, MAP_W), top: pct(t.top, MAP_H), width: `calc(${pct(256, MAP_W)} + 1px)` }} />
+      ))}
+      <span className="loc-pin" />
+      <span className="loc-zoom">
+        <button className="mini" onClick={() => setZoom(zoom + 1)} disabled={zoom >= 3} aria-label="Zoom in">+</button>
+        <button className="mini" onClick={() => setZoom(zoom - 1)} disabled={zoom <= 0} aria-label="Zoom out">-</button>
+      </span>
+    </div>
   );
 }
 

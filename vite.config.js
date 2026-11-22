@@ -42,6 +42,16 @@ export default defineConfig({
               cacheableResponse: { statuses: [200] },
             },
           },
+          {
+            // Wiki map tiles for the "Getting to" map (versioned paths, so they never change)
+            urlPattern: /^https:\/\/maps\.runescape\.wiki\/osrs\/versions\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'wiki-maps',
+              expiration: { maxEntries: 1000, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
         ],
       },
     }),
