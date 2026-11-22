@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
-  Card, Collapsible, EquipmentSetups, GearPick, GearTiers, GettingThere, Img, Item, LocationPick, Portrait, Prose, Stat, Verdict, sortLocations,
+  Card, Collapsible, EquipmentSetups, GearPick, GearTiers, GettingThere, Img, Item, LocationPick, Portrait, Prose, Routes, Stat, Verdict, sortLocations,
 } from './ui.jsx';
 import { fmt } from '../lib/engine.js';
-import { prayerFor, requiredItems, weaponHints, ytSearch } from '../lib/advice.js';
+import { prayerFor, requiredItems, transportOptions, weaponHints, ytSearch } from '../lib/advice.js';
 import { ICON, MASTER_IMG, PRAYER_IMG } from '../lib/icons.js';
 import { placePage, wikiUrl } from '../lib/wikiparse.js';
 import { getLive, go, liveLookup, setOverride, setSettings } from '../store.js';
@@ -36,69 +36,77 @@ export default function TaskView({ data, name, settings, evaluation, lookupOnly 
   const image = monster?.image || data.imageFor(name);
 
   return (
-    <div className="view">
-      <section className="task-hero panel">
-        <Portrait img={image} size={112} alt={name} />
-        <div className="task-hero-body">
-          <h1>{name}</h1>
-          {row ? (
-            <>
-              <div className="verdict-line">
-                <Verdict action={row.action} big />
-                <OverrideControl row={row} master={settings.master} />
+    <div className="view wide">
+      <div className="duo">
+        <section className="task-hero panel">
+          <Portrait img={image} size={112} alt={name} />
+          <div className="task-hero-body">
+            <h1>{name}</h1>
+            {row ? (
+              <>
+                <div className="verdict-line">
+                  <Verdict action={row.action} big />
+                  <OverrideControl row={row} master={settings.master} />
+                </div>
+                <p className="reason">{row.reason}</p>
+              </>
+            ) : (
+              <p className="reason muted">{masterLabel} doesn't assign this task.</p>
+            )}
+            <MasterSwitch data={data} settings={settings} assigners={assigners} />
+          </div>
+        </section>
+
+        {chosen && (
+          <Card title="Best method" icon={ICON.combat}>
+            <p className="method">{chosen.mob.variant}</p>
+            <div className="stats">
+              <Stat icon={ICON.slayer} label="XP/h" value={fmt.k(chosen.rates.xph)} />
+              <Stat icon={ICON.coins} label="GP/h" value={fmt.k(chosen.rates.gph)} />
+              <Stat icon={ICON.watch} label="Task" value={fmt.h(chosen.rates.hours)} sub={`${Math.round(row.length)} kills`} />
+            </div>
+            {(row.extend || row.bracelet) && (
+              <div className="perks">
+                {row.extend && <Item name="Extend this task" icon={ICON.extend} />}
+                {row.bracelet && <Item name={row.bracelet === 'Slaughter' ? 'Bracelet of slaughter' : 'Expeditious bracelet'} icon={row.bracelet === 'Slaughter' ? ICON.slaughter : ICON.expeditious} />}
               </div>
-              <p className="reason">{row.reason}</p>
-            </>
-          ) : (
-            <p className="reason muted">{masterLabel} doesn't assign this task.</p>
-          )}
-          <MasterSwitch data={data} settings={settings} assigners={assigners} />
-        </div>
-      </section>
+            )}
+          </Card>
+        )}
+      </div>
 
       {loading && !wiki && <Card><p className="muted">Looking it up on the OSRS Wiki...</p></Card>}
       {error && <Card><p className="warn">{error}</p></Card>}
 
-      {chosen && (
-        <Card title="Best method" icon={ICON.combat}>
-          <p className="method">{chosen.mob.variant}</p>
-          <div className="stats">
-            <Stat icon={ICON.slayer} label="XP/h" value={fmt.k(chosen.rates.xph)} />
-            <Stat icon={ICON.coins} label="GP/h" value={fmt.k(chosen.rates.gph)} />
-            <Stat icon={ICON.watch} label="Task" value={fmt.h(chosen.rates.hours)} sub={`${Math.round(row.length)} kills`} />
+      <div className="task-main">
+        <div className="task-col">
+          <div className="duo">
+            {loc && <LocationPick locations={locations} current={loc} onPick={setPickedLoc} />}
+
+            {wiki && (prayers.length > 0 || items.length > 0) && (
+              <Card title="Bring" icon={ICON.inventory}>
+                <div className="item-list">
+                  {prayers.map((p) => PRAYER_IMG[p]
+                    ? <Item key={p} name={p} icon={PRAYER_IMG[p]} />
+                    : <Item key={p} name={p} icon="Anti-dragon shield.png" />)}
+                  {items.map((i) => {
+                    const helm = i.coveredByHelm && settings.slayerHelm;
+                    return <Item key={i.name} name={helm ? `${i.name} (helm)` : i.name} icon={helm ? ICON.helm : i.icon} dim={helm} note={i.coveredByHelm ? 'Covered by a slayer helmet' : undefined} />;
+                  })}
+                </div>
+              </Card>
+            )}
           </div>
-          {(row.extend || row.bracelet) && (
-            <div className="perks">
-              {row.extend && <Item name="Extend this task" icon={ICON.extend} />}
-              {row.bracelet && <Item name={row.bracelet === 'Slaughter' ? 'Bracelet of slaughter' : 'Expeditious bracelet'} icon={row.bracelet === 'Slaughter' ? ICON.slaughter : ICON.expeditious} />}
-            </div>
-          )}
-        </Card>
-      )}
 
-      {loc && <LocationPick locations={locations} current={loc} onPick={setPickedLoc} />}
+          {loc && <GettingThere key={loc.name} l={loc} place={data.wiki?.places?.[placePage(loc.name)]} />}
+        </div>
 
-      {wiki && (prayers.length > 0 || items.length > 0) && (
-        <Card title="Bring" icon={ICON.inventory}>
-          <div className="item-list">
-            {prayers.map((p) => PRAYER_IMG[p]
-              ? <Item key={p} name={p} icon={PRAYER_IMG[p]} />
-              : <Item key={p} name={p} icon="Anti-dragon shield.png" />)}
-            {items.map((i) => {
-              const helm = i.coveredByHelm && settings.slayerHelm;
-              return <Item key={i.name} name={helm ? `${i.name} (helm)` : i.name} icon={helm ? ICON.helm : i.icon} dim={helm} note={i.coveredByHelm ? 'Covered by a slayer helmet' : undefined} />;
-            })}
-          </div>
-        </Card>
-      )}
-
-      {wiki?.gearTiers?.length > 0 && (
-        <Card title="Gear" icon={ICON.equipment} right={<a className="small" href="#/settings">budget: {settings.budget}</a>}>
-          <GearPick key={chosen?.mob.variant} sets={wiki.gearTiers} budget={settings.budget} variant={chosen?.mob.variant} />
-        </Card>
-      )}
-
-      {loc && <GettingThere key={loc.name} l={loc} place={data.wiki?.places?.[placePage(loc.name)]} />}
+        {wiki?.gearTiers?.length > 0 && (
+          <Card title="Gear" icon={ICON.equipment} className="gear-card" right={<a className="small" href="#/settings">budget: {settings.budget}</a>}>
+            <GearPick key={chosen?.mob.variant} sets={wiki.gearTiers} budget={settings.budget} variant={chosen?.mob.variant} />
+          </Card>
+        )}
+      </div>
 
       <Collapsible title="More" className="more">
         <More data={data} name={name} row={row} wiki={wiki} live={live} settings={settings} refresh={refresh} loading={loading} />
@@ -224,29 +232,41 @@ export function BossView({ data, name, settings }) {
   const mob = data.sheet.mobs.find((m) => m.variant.startsWith(name));
   const prayers = prayerFor(b?.monster?.attackStyle);
   return (
-    <div className="view">
-      <section className="task-hero panel">
-        <Portrait img={b?.monster?.image} size={112} alt={name} />
-        <div className="task-hero-body">
-          <h1>{name}</h1>
-          <p className="reason muted">Boss task option</p>
-        </div>
-      </section>
-      {mob?.xph > 0 && (
-        <Card title="Rates" icon={ICON.combat}>
-          <div className="stats">
-            <Stat icon={ICON.slayer} label="XP/h" value={fmt.k(mob.xph)} />
-            <Stat icon={ICON.coins} label="GP/h" value={fmt.k(mob.gph)} />
-            <Stat icon={ICON.combat} label="Kills/h" value={fmt.k(mob.kph)} />
+    <div className="view wide">
+      <div className="duo">
+        <section className="task-hero panel">
+          <Portrait img={b?.monster?.image} size={112} alt={name} />
+          <div className="task-hero-body">
+            <h1>{name}</h1>
+            <p className="reason muted">Boss task option</p>
           </div>
-        </Card>
-      )}
-      {prayers.length > 0 && (
-        <Card title="Bring" icon={ICON.inventory}>
-          <div className="item-list">{prayers.map((p) => <Item key={p} name={p} icon={PRAYER_IMG[p] || 'Anti-dragon shield.png'} />)}</div>
-        </Card>
-      )}
-      {b?.gearTiers?.length > 0 && <Card title="Gear" icon={ICON.equipment}><GearPick sets={b.gearTiers} budget={settings.budget} /></Card>}
+        </section>
+        {mob?.xph > 0 && (
+          <Card title="Rates" icon={ICON.combat}>
+            <div className="stats">
+              <Stat icon={ICON.slayer} label="XP/h" value={fmt.k(mob.xph)} />
+              <Stat icon={ICON.coins} label="GP/h" value={fmt.k(mob.gph)} />
+              <Stat icon={ICON.combat} label="Kills/h" value={fmt.k(mob.kph)} />
+            </div>
+          </Card>
+        )}
+      </div>
+      <div className="task-main">
+        <div className="duo">
+          {prayers.length > 0 && (
+            <Card title="Bring" icon={ICON.inventory}>
+              <div className="item-list">{prayers.map((p) => <Item key={p} name={p} icon={PRAYER_IMG[p] || 'Anti-dragon shield.png'} />)}</div>
+            </Card>
+          )}
+          {b?.transport && (
+            <Card title="Getting there" icon={ICON.map}>
+              <Routes routes={transportOptions(b.transport)} />
+              <Collapsible title="Directions"><Prose text={b.transport} /></Collapsible>
+            </Card>
+          )}
+        </div>
+        {b?.gearTiers?.length > 0 && <Card title="Gear" icon={ICON.equipment} className="gear-card"><GearPick sets={b.gearTiers} budget={settings.budget} /></Card>}
+      </div>
       {b ? (
         <Collapsible title="More" className="more">
           <div className="more-body">
@@ -263,7 +283,6 @@ export function BossView({ data, name, settings }) {
             </section>
             {b.gearTiers?.length > 0 && <section><h3>Every gear tier</h3><GearTiers sets={b.gearTiers} budget={settings.budget} /></section>}
             {b.requirements && <Collapsible title="Suggested skills"><Prose text={b.requirements} /></Collapsible>}
-            {b.transport && <Collapsible title="Getting there"><Prose text={b.transport} /></Collapsible>}
             {b.inventory && <Collapsible title="Inventory"><Prose text={b.inventory} /></Collapsible>}
             <Collapsible title="Strategy"><Prose text={[b.intro, b.strategy].filter(Boolean).join('\n\n')} /></Collapsible>
             <section className="links">

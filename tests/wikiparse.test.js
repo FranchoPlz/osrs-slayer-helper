@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { imgUrl, itemOf, mapTiles, parseMasterPage } from '../src/lib/wikiparse.js';
+import { imgUrl, itemOf, mapTiles, parseMasterPage, placeEntrance } from '../src/lib/wikiparse.js';
+import { transportOptions } from '../src/lib/advice.js';
 
 const MASTER_TABLE = `{| class="wikitable sortable" style="text-align:center;"
 !Monster
@@ -112,5 +113,39 @@ describe('mapTiles', () => {
   test('uses the map id, zoom and plane of the spot', () => {
     expect(mapTiles({ x: 2704, y: 9431, mapID: 46, plane: 1 }, 'v1', 2, 1, 1)[0].src)
       .toBe('https://maps.runescape.wiki/osrs/versions/v1/tiles/rendered/46/2/1_42_147.png');
+  });
+});
+
+describe('placeEntrance', () => {
+  test('takes the surface spot from the infobox map', () => {
+    expect(placeEntrance('{{Infobox Location\n|name = Slayer Tower\n|map = {{Map|name=Slayer Tower|3429,3555|plane=0|mapID=0}}\n}}'))
+      .toEqual({ mapID: 0, plane: 0, x: 3429, y: 3555 });
+  });
+
+  test('prefers the pin titled as the entrance, and skips dungeon maps', () => {
+    const wt = `{{Infobox Location|map = [[File:Catacombs map.png]]}}
+{{Map|1650,10000|mapID=0}}
+{{Map|mtype=pin|caption=Entrances
+|x:1696,y:3865,title:[[Greater demon]]s
+|x:1639,y:3674,title:Main Entrance - Statue
+}}`;
+    expect(placeEntrance(wt)).toEqual({ mapID: 0, plane: 0, x: 1639, y: 3674 });
+    expect(placeEntrance('{{Map|2704,9431|mapID=46}}')).toBeNull();
+  });
+});
+
+describe('transportOptions', () => {
+  test('lists teleports in the order the Wiki mentions them, with fairy ring codes', () => {
+    const r = transportOptions(
+      "The fastest way is Xeric's talisman, or the Kourend Castle Teleport spell.\n\n• Use a Taverley teleport tablet.\n• Fairy ring code fairy ring CIS, then fairy ring DJR.",
+    );
+    expect(r.map((x) => x.label)).toEqual(["Xeric's talisman", 'Kourend Castle Teleport', 'Taverley Teleport', 'Fairy ring']);
+    expect(r[2]).toMatchObject({ icon: 'Taverley teleport.png', text: '• Use a Taverley teleport tablet.' });
+    expect(r[3].codes).toEqual(['CIS', 'DJR']);
+  });
+
+  test('does not turn minigame or home teleports into destinations', () => {
+    const r = transportOptions('Use the Soul Wars Minigame Teleport or the Lumbridge Home Teleport.');
+    expect(r.map((x) => x.label)).toEqual(['Minigame teleport']);
   });
 });

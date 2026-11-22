@@ -3,7 +3,7 @@
 // Output: public/data/wiki.json  { masters: [...], tasks: { [task]: {...} }, bosses: { [boss]: {...} }, places }
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fetchWikitext, fetchImageWidths, parseTaskPage, parseMonsterPage, parseMasterPage, taskPageCandidates, monsterPageCandidates, parseRecommendedEquipment, sectionText, placePage, toPlain, splitSections } from '../src/lib/wikiparse.js';
+import { fetchWikitext, fetchImageWidths, parseTaskPage, parseMonsterPage, parseMasterPage, taskPageCandidates, monsterPageCandidates, parseRecommendedEquipment, sectionText, placePage, placeEntrance, toPlain, splitSections } from '../src/lib/wikiparse.js';
 import { norm } from '../src/lib/engine.js';
 
 const UA = 'osrs-slayer-helper/0.2 (personal self-hosted PWA; build-time snapshot)';
@@ -155,7 +155,7 @@ for (const p of placeNames) {
   const pg = ppages[p];
   if (!pg) continue;
   const transport = sectionText(pg.wikitext, /^(transportation|getting there|travel|access|entrances?)/i, 1500);
-  places[p] = { title: pg.title, transport: transport || toPlain(splitSections(pg.wikitext)[0].body).slice(0, 600) };
+  places[p] = { title: pg.title, transport: transport || toPlain(splitSections(pg.wikitext)[0].body).slice(0, 600), entrance: placeEntrance(pg.wikitext) };
 }
 
 await fs.writeFile(OUT, JSON.stringify({ fetchedAt: new Date().toISOString(), masters, tasks, bosses, places }));

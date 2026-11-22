@@ -50,8 +50,19 @@ img { image-rendering: auto; }
 .brand { display: flex; align-items: center; gap: 8px; font: 16px var(--rs); color: var(--orange); white-space: nowrap; text-shadow: 1px 1px 0 #000; -webkit-font-smoothing: none; }
 .brand img { height: 22px; }
 .brand:hover { text-decoration: none; }
-main { max-width: 760px; margin: 0 auto; padding: 14px 14px 24px; }
+main { max-width: 1440px; margin: 0 auto; padding: 14px 18px 24px; }
+.view { max-width: 960px; margin: 0 auto; }
+.view.wide { max-width: none; }
 .view > * + * { margin-top: 12px; }
+
+/* Wide task pages: pairs of cards side by side, gear in its own column */
+.duo { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 12px; }
+.task-main { display: grid; gap: 12px; align-items: start; }
+.task-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+@media (min-width: 1100px) {
+  .task-main { grid-template-columns: minmax(0, 1fr) auto; }
+  .gear-card { width: 420px; }
+}
 
 .bottombar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; display: flex; justify-content: center; gap: 6px; padding: 6px 0 calc(6px + env(safe-area-inset-bottom)); background: linear-gradient(#1d1812, #120f0b); border-top: 2px solid #000; box-shadow: inset 0 1px 0 var(--edge-hi); }
 .bottombar a { flex: 0 1 120px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; color: var(--muted); border: 1px solid transparent; border-radius: 3px; font: 13px var(--rs-plain); -webkit-font-smoothing: none; }
@@ -180,7 +191,8 @@ main { max-width: 760px; margin: 0 auto; padding: 14px 14px 24px; }
 .more { border: 1px solid #000; border-radius: 3px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--edge); }
 .more > .collapsible-head { padding: 12px 14px; font: 16px var(--rs); color: var(--orange); text-shadow: 1px 1px 0 #000; -webkit-font-smoothing: none; }
 .more > .collapsible-body { padding: 0 14px 12px; }
-.more-body > * + * { margin-top: 14px; }
+.more-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 14px 28px; align-items: start; }
+.more-body > .collapsible, .more-body > .links, .more-body > p { grid-column: 1 / -1; }
 .more-body .collapsible:first-child { border-top: 0; }
 
 .prose p { margin: 0 0 .7em; }
@@ -202,11 +214,29 @@ td { padding: 6px; border-bottom: 1px solid #241e16; vertical-align: top; }
 .loc-options button { width: 100%; display: flex; align-items: center; gap: 6px; padding: 7px 4px; background: none; border: 0; border-top: 1px solid #241e16; text-align: left; }
 .loc-options button:hover { background: rgba(255, 152, 31, .05); }
 .loc-options button.on { color: var(--orange); }
-.loc-map { position: relative; aspect-ratio: 16 / 9; margin-bottom: 10px; overflow: hidden; background: #000; border: 1px solid #000; box-shadow: 0 0 0 1px var(--edge); }
+.loc-map { position: relative; aspect-ratio: 560 / 380; overflow: hidden; background: #000; border: 1px solid #000; box-shadow: 0 0 0 1px var(--edge); }
 .loc-map img { position: absolute; height: auto; image-rendering: pixelated; }
 .loc-pin { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--block); border: 2px solid #fff; box-shadow: 0 0 0 1px #000, 0 0 8px #000; }
 .loc-zoom { position: absolute; top: 6px; right: 6px; display: flex; flex-direction: column; gap: 4px; }
 .loc-zoom .mini { width: 28px; padding: 2px 0; font-weight: bold; }
+.loc-inset { position: absolute; left: 6px; bottom: 6px; width: 34%; max-width: 180px; aspect-ratio: 180 / 130; overflow: hidden; background: #000; border: 1px solid #000; box-shadow: 0 0 0 1px var(--gold), 0 2px 8px #000; }
+.loc-pin.sm { width: 8px; height: 8px; margin: -4px 0 0 -4px; border-width: 1px; }
+.loc-label { position: absolute; top: 6px; left: 6px; padding: 2px 8px; font: 14px var(--rs); color: var(--orange); background: rgba(10, 8, 6, .85); border: 1px solid #000; box-shadow: inset 0 0 0 1px var(--edge); text-shadow: 1px 1px 0 #000; -webkit-font-smoothing: none; }
+
+/* Getting there: map beside the route icons once the card is wide enough */
+.travel { container-type: inline-size; }
+.travel-body { display: grid; gap: 12px; }
+@container (min-width: 620px) { .travel-body:has(> .travel-maps) { grid-template-columns: minmax(0, 1.5fr) minmax(220px, 1fr); align-items: start; } }
+.travel-maps { display: flex; flex-direction: column; gap: 10px; }
+.travel-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.travel-side p { margin: 0; }
+.routes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; align-items: start; }
+.routes summary { display: flex; align-items: center; gap: 8px; padding: 3px 8px 3px 3px; background: #0f0c09; border: 1px solid #000; border-radius: 2px; box-shadow: inset 0 0 0 1px var(--edge); cursor: pointer; list-style: none; }
+.routes summary::-webkit-details-marker { display: none; }
+.routes summary:hover, .routes details[open] summary { box-shadow: inset 0 0 0 1px var(--gold); }
+.routes details p { margin: 4px 2px 6px; color: var(--muted); }
+.route-label { flex: 1; min-width: 0; font-size: .9rem; }
+.ring-code { padding: 1px 5px; font: 15px var(--rs); color: var(--yellow); letter-spacing: .06em; background: var(--slot); border: 1px solid #000; border-radius: 2px; text-shadow: 1px 1px 0 #000; -webkit-font-smoothing: none; }
 
 /* ---------- home ---------- */
 .master-strip { display: flex; align-items: center; gap: 12px; color: var(--text); }

@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { API, fetchWikitext, fetchImageWidths, parseTaskPage, parseMonsterPage, parseRecommendedEquipment, sectionText, taskPageCandidates, monsterPageCandidates, toPlain, splitSections } from './lib/wikiparse.js';
+import { API, fetchWikitext, fetchImageWidths, parseTaskPage, parseMonsterPage, parseRecommendedEquipment, placeEntrance, sectionText, taskPageCandidates, monsterPageCandidates, toPlain, splitSections } from './lib/wikiparse.js';
 
 const KEY = 'slayer-helper:settings:v1';
 
@@ -110,7 +110,11 @@ export async function livePlace(page) {
   const r = await fetchWikitext([page]);
   const pg = r[page];
   if (!pg) return null;
-  return { title: pg.title, transport: sectionText(pg.wikitext, /^(transportation|getting there|travel|access|entrances?)/i, 1500) || toPlain(splitSections(pg.wikitext)[0].body).slice(0, 600) };
+  return {
+    title: pg.title,
+    transport: sectionText(pg.wikitext, /^(transportation|getting there|travel|access|entrances?)/i, 1500) || toPlain(splitSections(pg.wikitext)[0].body).slice(0, 600),
+    entrance: placeEntrance(pg.wikitext),
+  };
 }
 
 let mapVer;

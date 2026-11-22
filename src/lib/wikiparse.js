@@ -248,6 +248,28 @@ function parseMapTemplate(cell) {
   return { mapID: named.mapid ? Number(named.mapid) : 0, plane: named.plane ? Number(named.plane) : 0, x, y };
 }
 
+/** A {{Map}} spot is above ground on the main map; dungeons use other map ids or sit at y >= 6400 */
+export const isSurface = (m) => !!m && !m.mapID && m.y < 6400;
+
+/**
+ * Above-ground spot of a place page: the {{Map}} in its infobox or text. Dungeon pages pin their entrances this way,
+ * as "x,y" or "x:1639,y:3674,title:Main Entrance"; an entrance-titled pin wins.
+ */
+export function placeEntrance(wt) {
+  const ib = findTemplates(wt, 'Infobox Location')[0];
+  const maps = [...(ib ? findTemplates(templateParams(ib.inner).named.map || '', 'Map') : []), ...findTemplates(wt, 'Map')];
+  for (const t of maps) {
+    const { named, positional } = templateParams(t.inner);
+    const pins = positional.filter((p) => /^(?:x:)?\d+,(?:y:)?\d+/.test(p));
+    const pin = pins.find((p) => /entrance/i.test(p)) || pins[0];
+    if (!pin) continue;
+    const [x, y] = pin.match(/\d+/g).map(Number);
+    const m = { mapID: named.mapid ? Number(named.mapid) : 0, plane: named.plane ? Number(named.plane) : 0, x, y };
+    if (isSurface(m)) return m;
+  }
+  return null;
+}
+
 const yn = (s) => {
   const p = toPlain(s).toLowerCase();
   if (p.startsWith('yes')) return true;

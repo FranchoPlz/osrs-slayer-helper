@@ -1,21 +1,21 @@
 import { useEffect, useState } from 'react';
-import { imgUrl, mapTiles, wikiUrl, placePage } from '../lib/wikiparse.js';
-import { tierFor, locationMatches } from '../lib/advice.js';
+import { imgUrl, isSurface, mapTiles, wikiUrl, placePage } from '../lib/wikiparse.js';
+import { tierFor, locationMatches, transportOptions } from '../lib/advice.js';
 import { ICON, SLOT_IMG } from '../lib/icons.js';
 import { livePlace, mapVersion } from '../store.js';
 
 /**
  * Wiki image. `img` is a file name or { file, w }. `size` is the display box in px;
- * big images are fetched as a 2x thumbnail. Hidden if the file fails to load.
+ * big images are fetched as a 2x thumbnail. Falls back to `fallback`, then hides, if the file fails to load.
  */
-export function Img({ img, size, alt = '', className = '', title }) {
-  const [failed, setFailed] = useState(false);
-  const src = imgUrl(img, size ? size * 2 : undefined);
-  if (!src || failed) return null;
+export function Img({ img, size, alt = '', className = '', title, fallback }) {
+  const [fails, setFails] = useState(0);
+  const src = imgUrl(fails && fallback ? fallback : img, size ? size * 2 : undefined);
+  if (!src || fails > (fallback ? 1 : 0)) return null;
   return (
     <img
       className={className} src={src} alt={alt} title={title} loading="lazy" decoding="async"
-      crossOrigin="anonymous" referrerPolicy="no-referrer" onError={() => setFailed(true)}
+      crossOrigin="anonymous" referrerPolicy="no-referrer" onError={() => setFails(fails + 1)}
       style={size ? { maxWidth: size, maxHeight: size } : undefined}
     />
   );
@@ -123,49 +123,87 @@ export function LocationPick({ locations, current, onPick }) {
   );
 }
 
-/** Map and Wiki transport options for a location, as a card that opens */
+/** Map of a location next to the teleports and transport the Wiki names for it, as icons. The full text sits under "Directions". */
 export function GettingThere({ l, place }) {
   const [live, setLive] = useState(null);
   const [loading, setLoading] = useState(false);
   const page = placePage(l.name);
   const p = live || place;
+  const routes = transportOptions(l.notes, p?.transport);
+  const entrance = !isSurface(l.map) && p?.entrance; // underground spot: also show where to go in
   return (
-    <Collapsible title={`Getting to ${l.name}`} className="more">
-      {l.map && <LocationMap map={l.map} />}
-      {p?.transport ? <Prose text={p.transport} /> : <p className="muted">No transport info saved.</p>}
-      <p className="small muted">
-        <a href={wikiUrl(page)} target="_blank" rel="noreferrer">{page} on the Wiki</a>
-        {!live && (
-          <>{' · '}<button className="link-btn" disabled={loading} onClick={async () => { setLoading(true); try { setLive(await livePlace(page)); } catch { /* offline */ } setLoading(false); }}>
-            {loading ? 'Loading...' : 'Fetch latest from the Wiki'}
-          </button></>
+    <Card title={`Getting to ${l.name}`} icon={ICON.map} className="travel" right={<a className="small" href={wikiUrl(page)} target="_blank" rel="noreferrer">Wiki</a>}>
+      <div className="travel-body">
+        {(l.map || entrance) && (
+          <div className="travel-maps">
+            {l.map && <LocationMap map={l.map} label={entrance && 'Fight spot'} />}
+            {entrance && <LocationMap map={entrance} label="Entrance" />}
+          </div>
         )}
-      </p>
-    </Collapsible>
+        <div className="travel-side">
+          {routes.length > 0 ? <Routes routes={routes} /> : <p className="muted">No teleports named on the Wiki.</p>}
+          {p?.transport && <Collapsible title="Directions"><Prose text={p.transport} /></Collapsible>}
+          {!live && (
+            <p className="small muted">
+              <button className="link-btn" disabled={loading} onClick={async () => { setLoading(true); try { setLive(await livePlace(page)); } catch { /* offline */ } setLoading(false); }}>
+                {loading ? 'Loading...' : 'Fetch latest from the Wiki'}
+              </button>
+            </p>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }
 
-// View box the tiles are laid out in; it scales to the card width
-const MAP_W = 480, MAP_H = 270;
+/** Teleport/transport icons, fastest first; tap one for the Wiki sentence about it */
+export const Routes = ({ routes }) => (
+  <ul className="routes">
+    {routes.map((r) => (
+      <li key={r.label}>
+        <details>
+          <summary>
+            <span className="item-icon"><Img img={r.icon} fallback={r.fallback} alt="" /></span>
+            <span className="route-label">{r.label}</span>
+            {r.codes?.map((c) => <span key={c} className="ring-code">{c}</span>)}
+          </summary>
+          <p className="small">{r.text}</p>
+        </details>
+      </li>
+    ))}
+  </ul>
+);
+
+// View boxes the tiles are laid out in; they scale to the card width
+const MAP_W = 560, MAP_H = 380, INSET_W = 180, INSET_H = 130;
 const pct = (n, of) => `${(n / of) * 100}%`;
 
-/** Wiki world map around a location, with a pin on it */
-function LocationMap({ map }) {
+const MapTiles = ({ map, version, zoom, w, h }) => mapTiles(map, version, zoom, w, h).map((t) => (
+  <img key={t.src} src={t.src} alt="" crossOrigin="anonymous" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+    style={{ left: pct(t.left, w), top: pct(t.top, h), width: `calc(${pct(256, w)} + 1px)` }} />
+));
+
+/** Wiki world map around a location, with a pin on it, and a zoomed-out inset showing where in the world it is */
+function LocationMap({ map, label }) {
   const [version, setVersion] = useState(null);
   const [zoom, setZoom] = useState(2);
   useEffect(() => { mapVersion().then(setVersion, () => {}); }, []);
   if (!version) return null;
   return (
     <div className="loc-map">
-      {mapTiles(map, version, zoom, MAP_W, MAP_H).map((t) => (
-        <img key={t.src} src={t.src} alt="" crossOrigin="anonymous" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
-          style={{ left: pct(t.left, MAP_W), top: pct(t.top, MAP_H), width: `calc(${pct(256, MAP_W)} + 1px)` }} />
-      ))}
+      <MapTiles map={map} version={version} zoom={zoom} w={MAP_W} h={MAP_H} />
       <span className="loc-pin" />
+      {label && <span className="loc-label">{label}</span>}
       <span className="loc-zoom">
         <button className="mini" onClick={() => setZoom(zoom + 1)} disabled={zoom >= 3} aria-label="Zoom in">+</button>
-        <button className="mini" onClick={() => setZoom(zoom - 1)} disabled={zoom <= 0} aria-label="Zoom out">-</button>
+        <button className="mini" onClick={() => setZoom(zoom - 1)} disabled={zoom <= -2} aria-label="Zoom out">-</button>
       </span>
+      {isSurface(map) && zoom > -1 && (
+        <span className="loc-inset" aria-hidden="true">
+          <MapTiles map={map} version={version} zoom={-3} w={INSET_W} h={INSET_H} />
+          <span className="loc-pin sm" />
+        </span>
+      )}
     </div>
   );
 }
