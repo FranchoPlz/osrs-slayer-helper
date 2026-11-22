@@ -163,15 +163,18 @@ export function GettingThere({ l, place }) {
   const entrance = !isSurface(l.map) && p?.entrance; // underground spot: also show where to go in
   return (
     <Card title={`Getting to ${l.name}`} icon={ICON.map} className="travel" right={<a className="small" href={wikiUrl(page)} target="_blank" rel="noreferrer">Wiki</a>}>
-      <div className="travel-body">
+      {/* One map: directions sit under it, beside the longer route list; two maps: under the routes */}
+      <div className={`travel-body ${l.map && entrance ? 'two-maps' : ''}`}>
         {(l.map || entrance) && (
           <div className="travel-maps">
             {l.map && <LocationMap map={l.map} label={entrance && 'Fight spot'} />}
             {entrance && <LocationMap map={entrance} label="Entrance" />}
           </div>
         )}
-        <div className="travel-side">
+        <div className="travel-routes">
           {routes.length > 0 ? <Routes routes={routes} /> : <p className="muted">No teleports named on the Wiki.</p>}
+        </div>
+        <div className="travel-extra">
           {p?.transport && <Collapsible title="Directions"><Prose text={p.transport} /></Collapsible>}
           {!live && (
             <p className="small muted">

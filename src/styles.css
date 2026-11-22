@@ -55,18 +55,20 @@ main { max-width: 1440px; margin: 0 auto; padding: 14px 18px 24px; }
 .view.wide { max-width: none; }
 .view > * + * { margin-top: 12px; }
 
-/* Task pages: main column (place, travel) beside a side column (method, bring, gear). Each column stacks its own
-   cards so none stretch to a neighbour's height; narrow screens flatten both into one column, reordered by `order`. */
+/* Task pages: hero beside the method, then a main column (place, travel) beside a side column (bring, gear).
+   Columns stack their own cards so none stretch to a neighbour's height; narrow screens flatten into one column, reordered. */
 .task-main { display: flex; flex-direction: column; gap: 12px; }
 .task-col { display: contents; }
 .best-card { order: 1; }
 .where-card { order: 2; }
 .bring-card { order: 3; }
-.travel { order: 4; }
+.travel, .monster-card { order: 4; }
 .gear-card { order: 5; }
 @media (min-width: 1100px) {
-  .task-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(380px, 440px); align-items: start; }
-  .task-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .task-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(380px, 440px); }
+  .task-main > .task-hero { grid-area: 1 / 1; }
+  .task-main > .best-card { grid-area: 1 / 2; }
+  .task-col { grid-row: 2; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 }
 
 .bottombar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; display: flex; justify-content: center; gap: 6px; padding: 6px 0 calc(6px + env(safe-area-inset-bottom)); background: linear-gradient(#1d1812, #120f0b); border-top: 2px solid #000; box-shadow: inset 0 1px 0 var(--edge-hi); }
@@ -216,8 +218,8 @@ h4.sub { margin: 12px 0 6px; font-size: .85rem; font-weight: normal; color: var(
 .prose p { margin: 0 0 .7em; }
 .plain { margin: 6px 0; padding-left: 18px; }
 .plain li { margin: 2px 0; }
-.facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; margin-bottom: 6px; }
-.fact { display: flex; flex-direction: column; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 28px; margin-bottom: 6px; }
+.fact { display: flex; flex-direction: column; min-width: 110px; }
 .fact span { font-size: .75rem; color: var(--muted); }
 .links { display: flex; flex-wrap: wrap; gap: 6px 16px; }
 
@@ -241,13 +243,20 @@ td { padding: 6px; border-bottom: 1px solid #241e16; vertical-align: top; }
 .loc-pin.sm { width: 8px; height: 8px; margin: -4px 0 0 -4px; border-width: 1px; }
 .loc-label { position: absolute; top: 6px; left: 6px; padding: 2px 8px; font: 14px var(--rs); color: var(--orange); background: rgba(10, 8, 6, .85); border: 1px solid #000; box-shadow: inset 0 0 0 1px var(--edge); text-shadow: 1px 1px 0 #000; -webkit-font-smoothing: none; }
 
-/* Getting there: map beside the route icons once the card is wide enough */
+/* Getting there: map beside the route icons once the card is wide enough, directions filling the shorter column */
 .travel { container-type: inline-size; }
 .travel-body { display: grid; gap: 12px; }
-@container (min-width: 620px) { .travel-body:has(> .travel-maps) { grid-template-columns: minmax(0, 1.5fr) minmax(220px, 1fr); align-items: start; } }
+@container (min-width: 620px) {
+  .travel-body:has(> .travel-maps) { grid-template-columns: minmax(0, 1.5fr) minmax(220px, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "maps routes" "extra routes"; align-items: start; }
+  .travel-body.two-maps { grid-template-areas: "maps routes" "maps extra"; }
+  .travel-body:has(> .travel-maps) > .travel-maps { grid-area: maps; }
+  .travel-body:has(> .travel-maps) > .travel-routes { grid-area: routes; }
+  .travel-body:has(> .travel-maps) > .travel-extra { grid-area: extra; }
+}
 .travel-maps { display: flex; flex-direction: column; gap: 10px; }
-.travel-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.travel-side p { margin: 0; }
+.travel-routes, .travel-extra { min-width: 0; }
+.travel-extra { display: flex; flex-direction: column; gap: 8px; }
+.travel-extra p { margin: 0; }
 .routes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; align-items: start; }
 .routes summary { display: flex; align-items: center; gap: 8px; padding: 3px 8px 3px 3px; background: #0f0c09; border: 1px solid #000; border-radius: 2px; box-shadow: inset 0 0 0 1px var(--edge); cursor: pointer; list-style: none; }
 .routes summary::-webkit-details-marker { display: none; }

@@ -47,28 +47,45 @@ export default function TaskView({ data, name, settings, evaluation, lookupOnly 
 
   return (
     <div className="view wide">
-      {/* Main column (place, travel) beside a side column (method, bring, gear); one reordered column when narrow */}
+      {/* Hero beside the method on top, then a main column (place, travel) beside a side column (bring, gear); one reordered column when narrow */}
       <div className="task-main">
-        <div className="task-col">
-          <section className="task-hero panel">
-            <Portrait img={image} size={112} alt={name} />
-            <div className="task-hero-body">
-              <h1>{name}</h1>
-              {row ? (
-                <>
-                  <div className="verdict-line">
-                    <Verdict action={row.action} big />
-                    <OverrideControl row={row} master={settings.master} />
-                  </div>
-                  <p className="reason">{row.reason}</p>
-                </>
-              ) : (
-                <p className="reason muted">{masterLabel} doesn't assign this task.</p>
-              )}
-              <MasterSwitch data={data} settings={settings} assigners={assigners} />
-            </div>
-          </section>
+        <section className="task-hero panel">
+          <Portrait img={image} size={112} alt={name} />
+          <div className="task-hero-body">
+            <h1>{name}</h1>
+            {row ? (
+              <>
+                <div className="verdict-line">
+                  <Verdict action={row.action} big />
+                  <OverrideControl row={row} master={settings.master} />
+                </div>
+                <p className="reason">{row.reason}</p>
+              </>
+            ) : (
+              <p className="reason muted">{masterLabel} doesn't assign this task.</p>
+            )}
+            <MasterSwitch data={data} settings={settings} assigners={assigners} />
+          </div>
+        </section>
 
+        {chosen && (
+          <Card title="Best method" icon={ICON.combat} className="best-card">
+            <p className="method">{chosen.mob.variant}</p>
+            <div className="stats">
+              <Stat icon={ICON.slayer} label="XP/h" value={fmt.k(chosen.rates.xph)} />
+              <Stat icon={ICON.coins} label="GP/h" value={fmt.k(chosen.rates.gph)} />
+              <Stat icon={ICON.watch} label="Task" value={fmt.h(chosen.rates.hours)} sub={`${Math.round(row.length)} kills`} />
+            </div>
+            {(row.extend || row.bracelet) && (
+              <div className="perks">
+                {row.extend && <Item name="Extend this task" icon={ICON.extend} />}
+                {row.bracelet && <Item name={row.bracelet === 'Slaughter' ? 'Bracelet of slaughter' : 'Expeditious bracelet'} icon={row.bracelet === 'Slaughter' ? ICON.slaughter : ICON.expeditious} />}
+              </div>
+            )}
+          </Card>
+        )}
+
+        <div className="task-col">
           {loading && !wiki && <Card><p className="muted">Looking it up on the OSRS Wiki...</p></Card>}
           {error && <Card><p className="warn">{error}</p></Card>}
 
@@ -78,23 +95,6 @@ export default function TaskView({ data, name, settings, evaluation, lookupOnly 
         </div>
 
         <div className="task-col">
-          {chosen && (
-            <Card title="Best method" icon={ICON.combat} className="best-card">
-              <p className="method">{chosen.mob.variant}</p>
-              <div className="stats">
-                <Stat icon={ICON.slayer} label="XP/h" value={fmt.k(chosen.rates.xph)} />
-                <Stat icon={ICON.coins} label="GP/h" value={fmt.k(chosen.rates.gph)} />
-                <Stat icon={ICON.watch} label="Task" value={fmt.h(chosen.rates.hours)} sub={`${Math.round(row.length)} kills`} />
-              </div>
-              {(row.extend || row.bracelet) && (
-                <div className="perks">
-                  {row.extend && <Item name="Extend this task" icon={ICON.extend} />}
-                  {row.bracelet && <Item name={row.bracelet === 'Slaughter' ? 'Bracelet of slaughter' : 'Expeditious bracelet'} icon={row.bracelet === 'Slaughter' ? ICON.slaughter : ICON.expeditious} />}
-                </div>
-              )}
-            </Card>
-          )}
-
           {wiki && (
             <Card title="Bring" icon={ICON.inventory} className="bring-card">
               <p className="style-pick"><Icon file={STYLE_IMG[style.style]} alt="" /> Fight with <b>{STYLE_LABEL[style.style]}</b> <span className="small muted">({style.why})</span></p>
@@ -253,44 +253,36 @@ export function BossView({ data, name, settings }) {
   return (
     <div className="view wide">
       <div className="task-main">
-        <div className="task-col">
-          <section className="task-hero panel">
-            <Portrait img={b?.monster?.image} size={112} alt={name} />
-            <div className="task-hero-body">
-              <h1>{name}</h1>
-              <p className="reason muted">Boss task option</p>
+        <section className="task-hero panel">
+          <Portrait img={b?.monster?.image} size={112} alt={name} />
+          <div className="task-hero-body">
+            <h1>{name}</h1>
+            <p className="reason muted">Boss task option</p>
+          </div>
+        </section>
+        {mob?.xph > 0 && (
+          <Card title="Rates" icon={ICON.combat} className="best-card">
+            <div className="stats">
+              <Stat icon={ICON.slayer} label="XP/h" value={fmt.k(mob.xph)} />
+              <Stat icon={ICON.coins} label="GP/h" value={fmt.k(mob.gph)} />
+              <Stat icon={ICON.combat} label="Kills/h" value={fmt.k(mob.kph)} />
             </div>
-          </section>
+          </Card>
+        )}
+        <div className="task-col">
+          {prayers.length > 0 && (
+            <Card title="Bring" icon={ICON.inventory} className="bring-card">
+              <div className="item-list">{prayers.map((p) => <Item key={p} name={p} icon={PRAYER_IMG[p] || 'Anti-dragon shield.png'} />)}</div>
+            </Card>
+          )}
           {b?.transport && (
             <Card title="Getting there" icon={ICON.map} className="travel">
               <Routes routes={transportOptions(b.transport)} />
               <Collapsible title="Directions"><Prose text={b.transport} /></Collapsible>
             </Card>
           )}
-        </div>
-        <div className="task-col">
-          {mob?.xph > 0 && (
-            <Card title="Rates" icon={ICON.combat} className="best-card">
-              <div className="stats">
-                <Stat icon={ICON.slayer} label="XP/h" value={fmt.k(mob.xph)} />
-                <Stat icon={ICON.coins} label="GP/h" value={fmt.k(mob.gph)} />
-                <Stat icon={ICON.combat} label="Kills/h" value={fmt.k(mob.kph)} />
-              </div>
-            </Card>
-          )}
-          {prayers.length > 0 && (
-            <Card title="Bring" icon={ICON.inventory} className="bring-card">
-              <div className="item-list">{prayers.map((p) => <Item key={p} name={p} icon={PRAYER_IMG[p] || 'Anti-dragon shield.png'} />)}</div>
-            </Card>
-          )}
-          {b?.gearTiers?.length > 0 && <Card title="Gear" icon={ICON.equipment} className="gear-card"><GearPick sets={b.gearTiers} budget={settings.budget} /></Card>}
-        </div>
-      </div>
-      {b ? (
-        <Collapsible title="More" className="more">
-          <div className="more-body">
-            <section>
-              <h3>Monster</h3>
+          {b && (
+            <Card title="Monster" icon={ICON.combat} className="monster-card">
               <div className="facts">
                 {b.monster?.combat && <Fact k="Combat lvl" v={b.monster.combat} />}
                 {b.monster?.hitpoints && <Fact k="Hitpoints" v={b.monster.hitpoints} />}
@@ -299,7 +291,16 @@ export function BossView({ data, name, settings }) {
               </div>
               <ul className="plain small">{weaponHints(b.monster).map((h) => <li key={h}>{h}</li>)}</ul>
               {mob?.notes && <p className="small muted">{mob.notes}</p>}
-            </section>
+            </Card>
+          )}
+        </div>
+        <div className="task-col">
+          {b?.gearTiers?.length > 0 && <Card title="Gear" icon={ICON.equipment} className="gear-card"><GearPick sets={b.gearTiers} budget={settings.budget} /></Card>}
+        </div>
+      </div>
+      {b ? (
+        <Collapsible title="More" className="more">
+          <div className="more-body">
             {b.gearTiers?.length > 0 && <section><h3>Every gear tier</h3><GearTiers sets={b.gearTiers} budget={settings.budget} /></section>}
             {b.requirements && <Collapsible title="Suggested skills"><Prose text={b.requirements} /></Collapsible>}
             {b.inventory && <Collapsible title="Inventory"><Prose text={b.inventory} /></Collapsible>}
