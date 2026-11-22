@@ -1,0 +1,16 @@
+[Unit]
+Description=OSRS Slayer Helper PWA
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=osrs
+Group=osrs
+WorkingDirectory=/opt/osrs_slayer
+ExecStart=/usr/bin/python3 /opt/osrs_slayer/server.py --host 127.0.0.1 --port 8766
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
