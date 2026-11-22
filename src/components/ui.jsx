@@ -100,7 +100,7 @@ export function sortLocations(locations, chosenVariant) {
 export function LocationPick({ locations, current, onPick }) {
   const [open, setOpen] = useState(false);
   return (
-    <Card title="Where" icon={ICON.map} right={locations.length > 1 && (
+    <Card title="Where" icon={ICON.map} className="where-card" right={locations.length > 1 && (
       <button className="mini" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? 'done' : `change (${locations.length})`}</button>
     )}>
       <div className="best-loc"><strong>{current.name}</strong></div>

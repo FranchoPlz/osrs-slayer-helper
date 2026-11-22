@@ -47,85 +47,84 @@ export default function TaskView({ data, name, settings, evaluation, lookupOnly 
 
   return (
     <div className="view wide">
-      <div className="duo">
-        <section className="task-hero panel">
-          <Portrait img={image} size={112} alt={name} />
-          <div className="task-hero-body">
-            <h1>{name}</h1>
-            {row ? (
-              <>
-                <div className="verdict-line">
-                  <Verdict action={row.action} big />
-                  <OverrideControl row={row} master={settings.master} />
-                </div>
-                <p className="reason">{row.reason}</p>
-              </>
-            ) : (
-              <p className="reason muted">{masterLabel} doesn't assign this task.</p>
-            )}
-            <MasterSwitch data={data} settings={settings} assigners={assigners} />
-          </div>
-        </section>
-
-        {chosen && (
-          <Card title="Best method" icon={ICON.combat}>
-            <p className="method">{chosen.mob.variant}</p>
-            <div className="stats">
-              <Stat icon={ICON.slayer} label="XP/h" value={fmt.k(chosen.rates.xph)} />
-              <Stat icon={ICON.coins} label="GP/h" value={fmt.k(chosen.rates.gph)} />
-              <Stat icon={ICON.watch} label="Task" value={fmt.h(chosen.rates.hours)} sub={`${Math.round(row.length)} kills`} />
-            </div>
-            {(row.extend || row.bracelet) && (
-              <div className="perks">
-                {row.extend && <Item name="Extend this task" icon={ICON.extend} />}
-                {row.bracelet && <Item name={row.bracelet === 'Slaughter' ? 'Bracelet of slaughter' : 'Expeditious bracelet'} icon={row.bracelet === 'Slaughter' ? ICON.slaughter : ICON.expeditious} />}
-              </div>
-            )}
-          </Card>
-        )}
-      </div>
-
-      {loading && !wiki && <Card><p className="muted">Looking it up on the OSRS Wiki...</p></Card>}
-      {error && <Card><p className="warn">{error}</p></Card>}
-
+      {/* Main column (place, travel) beside a side column (method, bring, gear); one reordered column when narrow */}
       <div className="task-main">
         <div className="task-col">
-          <div className="duo">
-            {loc && <LocationPick locations={locations} current={loc} onPick={setPickedLoc} />}
+          <section className="task-hero panel">
+            <Portrait img={image} size={112} alt={name} />
+            <div className="task-hero-body">
+              <h1>{name}</h1>
+              {row ? (
+                <>
+                  <div className="verdict-line">
+                    <Verdict action={row.action} big />
+                    <OverrideControl row={row} master={settings.master} />
+                  </div>
+                  <p className="reason">{row.reason}</p>
+                </>
+              ) : (
+                <p className="reason muted">{masterLabel} doesn't assign this task.</p>
+              )}
+              <MasterSwitch data={data} settings={settings} assigners={assigners} />
+            </div>
+          </section>
 
-            {wiki && (
-              <Card title="Bring" icon={ICON.inventory}>
-                <p className="style-pick"><Icon file={STYLE_IMG[style.style]} alt="" /> Fight with <b>{STYLE_LABEL[style.style]}</b> <span className="small muted">({style.why})</span></p>
-                <div className="item-list">
-                  {prayers.map((p) => PRAYER_IMG[p]
-                    ? <Item key={p} name={p} icon={PRAYER_IMG[p]} />
-                    : <Item key={p} name={p} icon="Anti-dragon shield.png" />)}
-                  {items.map((i) => {
-                    const helm = i.coveredByHelm && settings.slayerHelm;
-                    return <Item key={i.name} name={helm ? `${i.name} (helm)` : i.name} icon={helm ? ICON.helm : i.icon} dim={helm} note={i.coveredByHelm ? 'Covered by a slayer helmet' : i.for && `Needed for ${i.for}`} />;
-                  })}
-                </div>
-                {wiki.inventoryItems?.length > 0 && (
-                  <>
-                    <h4 className="sub">Wiki inventory</h4>
-                    <div className="item-list">
-                      {wiki.inventoryItems.map((i) => <Item key={i.name} name={i.count > 1 ? `${i.count} × ${i.name}` : i.name} icon={i.icon} />)}
-                    </div>
-                  </>
-                )}
-              </Card>
-            )}
-          </div>
+          {loading && !wiki && <Card><p className="muted">Looking it up on the OSRS Wiki...</p></Card>}
+          {error && <Card><p className="warn">{error}</p></Card>}
+
+          {loc && <LocationPick locations={locations} current={loc} onPick={setPickedLoc} />}
 
           {loc && <GettingThere key={loc.name} l={loc} place={data.wiki?.places?.[placePage(loc.name)]} />}
         </div>
 
-        {gear.length > 0 && (
-          <Card title="Gear" icon={ICON.equipment} className="gear-card" right={<a className="small" href="#/settings">budget: {settings.budget}</a>}>
-            <GearPick key={`${chosen?.mob.variant}${style.style}`} sets={gear} budget={settings.budget} style={style.style} />
-            {!ownGear && <p className="small muted">No setup for this task on the Wiki, so this is its general Slayer gear from <a href={wikiUrl('Slayer training')} target="_blank" rel="noreferrer">Slayer training</a>.</p>}
-          </Card>
-        )}
+        <div className="task-col">
+          {chosen && (
+            <Card title="Best method" icon={ICON.combat} className="best-card">
+              <p className="method">{chosen.mob.variant}</p>
+              <div className="stats">
+                <Stat icon={ICON.slayer} label="XP/h" value={fmt.k(chosen.rates.xph)} />
+                <Stat icon={ICON.coins} label="GP/h" value={fmt.k(chosen.rates.gph)} />
+                <Stat icon={ICON.watch} label="Task" value={fmt.h(chosen.rates.hours)} sub={`${Math.round(row.length)} kills`} />
+              </div>
+              {(row.extend || row.bracelet) && (
+                <div className="perks">
+                  {row.extend && <Item name="Extend this task" icon={ICON.extend} />}
+                  {row.bracelet && <Item name={row.bracelet === 'Slaughter' ? 'Bracelet of slaughter' : 'Expeditious bracelet'} icon={row.bracelet === 'Slaughter' ? ICON.slaughter : ICON.expeditious} />}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {wiki && (
+            <Card title="Bring" icon={ICON.inventory} className="bring-card">
+              <p className="style-pick"><Icon file={STYLE_IMG[style.style]} alt="" /> Fight with <b>{STYLE_LABEL[style.style]}</b> <span className="small muted">({style.why})</span></p>
+              <div className="item-list">
+                {prayers.map((p) => PRAYER_IMG[p]
+                  ? <Item key={p} name={p} icon={PRAYER_IMG[p]} />
+                  : <Item key={p} name={p} icon="Anti-dragon shield.png" />)}
+                {items.map((i) => {
+                  const helm = i.coveredByHelm && settings.slayerHelm;
+                  return <Item key={i.name} name={helm ? `${i.name} (helm)` : i.name} icon={helm ? ICON.helm : i.icon} dim={helm} note={i.coveredByHelm ? 'Covered by a slayer helmet' : i.for && `Needed for ${i.for}`} />;
+                })}
+              </div>
+              {wiki.inventoryItems?.length > 0 && (
+                <>
+                  <h4 className="sub">Wiki inventory</h4>
+                  <div className="item-list">
+                    {wiki.inventoryItems.map((i) => <Item key={i.name} name={i.count > 1 ? `${i.count} × ${i.name}` : i.name} icon={i.icon} />)}
+                  </div>
+                </>
+              )}
+            </Card>
+          )}
+
+          {gear.length > 0 && (
+            <Card title="Gear" icon={ICON.equipment} className="gear-card" right={<a className="small" href="#/settings">budget: {settings.budget}</a>}>
+              <GearPick key={`${chosen?.mob.variant}${style.style}`} sets={gear} budget={settings.budget} style={style.style} />
+              {!ownGear && <p className="small muted">No setup for this task on the Wiki, so this is its general Slayer gear from <a href={wikiUrl('Slayer training')} target="_blank" rel="noreferrer">Slayer training</a>.</p>}
+            </Card>
+          )}
+        </div>
       </div>
 
       <Collapsible title="More" className="more">
@@ -253,39 +252,39 @@ export function BossView({ data, name, settings }) {
   const prayers = prayerFor(b?.monster?.attackStyle);
   return (
     <div className="view wide">
-      <div className="duo">
-        <section className="task-hero panel">
-          <Portrait img={b?.monster?.image} size={112} alt={name} />
-          <div className="task-hero-body">
-            <h1>{name}</h1>
-            <p className="reason muted">Boss task option</p>
-          </div>
-        </section>
-        {mob?.xph > 0 && (
-          <Card title="Rates" icon={ICON.combat}>
-            <div className="stats">
-              <Stat icon={ICON.slayer} label="XP/h" value={fmt.k(mob.xph)} />
-              <Stat icon={ICON.coins} label="GP/h" value={fmt.k(mob.gph)} />
-              <Stat icon={ICON.combat} label="Kills/h" value={fmt.k(mob.kph)} />
-            </div>
-          </Card>
-        )}
-      </div>
       <div className="task-main">
-        <div className="duo">
-          {prayers.length > 0 && (
-            <Card title="Bring" icon={ICON.inventory}>
-              <div className="item-list">{prayers.map((p) => <Item key={p} name={p} icon={PRAYER_IMG[p] || 'Anti-dragon shield.png'} />)}</div>
-            </Card>
-          )}
+        <div className="task-col">
+          <section className="task-hero panel">
+            <Portrait img={b?.monster?.image} size={112} alt={name} />
+            <div className="task-hero-body">
+              <h1>{name}</h1>
+              <p className="reason muted">Boss task option</p>
+            </div>
+          </section>
           {b?.transport && (
-            <Card title="Getting there" icon={ICON.map}>
+            <Card title="Getting there" icon={ICON.map} className="travel">
               <Routes routes={transportOptions(b.transport)} />
               <Collapsible title="Directions"><Prose text={b.transport} /></Collapsible>
             </Card>
           )}
         </div>
-        {b?.gearTiers?.length > 0 && <Card title="Gear" icon={ICON.equipment} className="gear-card"><GearPick sets={b.gearTiers} budget={settings.budget} /></Card>}
+        <div className="task-col">
+          {mob?.xph > 0 && (
+            <Card title="Rates" icon={ICON.combat} className="best-card">
+              <div className="stats">
+                <Stat icon={ICON.slayer} label="XP/h" value={fmt.k(mob.xph)} />
+                <Stat icon={ICON.coins} label="GP/h" value={fmt.k(mob.gph)} />
+                <Stat icon={ICON.combat} label="Kills/h" value={fmt.k(mob.kph)} />
+              </div>
+            </Card>
+          )}
+          {prayers.length > 0 && (
+            <Card title="Bring" icon={ICON.inventory} className="bring-card">
+              <div className="item-list">{prayers.map((p) => <Item key={p} name={p} icon={PRAYER_IMG[p] || 'Anti-dragon shield.png'} />)}</div>
+            </Card>
+          )}
+          {b?.gearTiers?.length > 0 && <Card title="Gear" icon={ICON.equipment} className="gear-card"><GearPick sets={b.gearTiers} budget={settings.budget} /></Card>}
+        </div>
       </div>
       {b ? (
         <Collapsible title="More" className="more">
