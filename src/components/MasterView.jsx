@@ -1,55 +1,68 @@
-import { Card, Stat, Verdict } from './ui.jsx';
+import { Card, Img, Portrait, Stat, Verdict } from './ui.jsx';
+import MortimerPicker from './MortimerPicker.jsx';
 import { fmt } from '../lib/engine.js';
+import { ICON, MASTER_IMG } from '../lib/icons.js';
 import { go, setSettings } from '../store.js';
+
+export function MasterPicker({ data, current }) {
+  return (
+    <div className="master-grid">
+      {data.masters.map((m) => (
+        <button key={m.id} className={`master-btn ${m.id === current ? 'on' : ''}`} onClick={() => setSettings({ master: m.id })}>
+          <Img img={MASTER_IMG[m.id]} alt="" />
+          <span>{m.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function MasterView({ data, settings, evaluation }) {
   const { rows, summary, bosses } = evaluation;
-  const label = data.master(settings.master)?.label;
+  const rate = (r) => (settings.goal === 'gp' ? r.chosen.rates.gph : r.chosen.rates.xph);
   return (
     <div className="view">
-      <h1>Slayer masters</h1>
-      <div className="chips scroll">
-        {data.sheet.masters.map((m) => (
-          <button key={m.id} className={`chip ${m.id === settings.master ? 'on' : ''}`} onClick={() => setSettings({ master: m.id })}>{m.label}</button>
-        ))}
-      </div>
+      <MasterPicker data={data} current={settings.master} />
 
       {summary && (
-        <Card title={`${label}: your setup`}>
+        <section className="panel">
           <div className="stats">
-            <Stat label="Expected XP/h" value={fmt.k(summary.xph)} sub="incl. skips & travel" />
-            <Stat label="Expected GP/h" value={fmt.k(summary.gph)} />
-            <Stat label="Skip rate" value={fmt.pct(summary.skipRate)} />
-            <Stat label="Net points/task" value={summary.pointsPerTask ? summary.netPoints.toFixed(1) : '–'} sub={`${summary.pointsPerTask} earned avg`} />
+            <Stat icon={ICON.slayer} label="XP/h" value={fmt.k(summary.xph)} sub="with skips and travel" />
+            <Stat icon={ICON.coins} label="GP/h" value={fmt.k(summary.gph)} />
+            <Stat icon={ICON.gem} label="Points/task" value={summary.pointsPerTask ? summary.netPoints.toFixed(1) : '-'} sub={`skip ${summary.skipCost} · ${summary.blockSlots} blocks`} />
           </div>
-          <p className="small"><b>Block list ({summary.blocks.length}/{summary.blockSlots}):</b> {summary.blocks.map((r) => r.task).join(', ') || 'none'}</p>
-          <p className="small"><b>Skip:</b> {summary.skips.map((r) => r.task).join(', ') || 'none'}</p>
-          <p className="small muted">Goal: {settings.goal === 'xp' ? 'Slayer XP' : settings.goal === 'gp' ? 'Profit' : 'Balanced'} · change in Settings</p>
-        </Card>
+        </section>
       )}
 
-      <Card title="All tasks" className="flush">
-        <table className="tasks">
-          <thead><tr><th>Task</th><th>%</th><th>Call</th><th>{settings.goal === 'gp' ? 'GP/h' : 'XP/h'}</th></tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.task} onClick={() => go('task', r.task)} className={r.manual ? 'manual' : ''}>
-                <td>
-                  {r.task}
-                  <div className="small muted">{r.chosen ? r.chosen.mob.variant : r.reason}</div>
-                </td>
-                <td>{(r.chance * 100).toFixed(1)}</td>
-                <td><Verdict action={r.action} />{r.sheetActionNorm && r.sheetActionNorm !== r.action && r.action !== 'Locked' && <div className="small muted">sheet: {r.sheetActionNorm}</div>}</td>
-                <td>{r.chosen ? fmt.k(settings.goal === 'gp' ? r.chosen.rates.gph : r.chosen.rates.xph) : '–'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {settings.master === 'Mortimer' && <MortimerPicker data={data} evaluation={evaluation} goal={settings.goal} />}
+
+      <Card title="Tasks" className="flush" right={<span className="small muted">{settings.goal === 'gp' ? 'GP/h' : 'XP/h'}</span>}>
+        <ul className="task-list">
+          {rows.map((r) => (
+            <li key={r.task} onClick={() => go('task', r.task)} className={r.manual ? 'manual' : ''}>
+              <Portrait img={data.imageFor(r.task)} size={36} />
+              <span className="task-name">
+                {r.task}
+                <span className="small muted">{(r.chance * 100).toFixed(1)}%{r.chosen ? ` · ${r.chosen.mob.variant}` : r.action === 'Locked' ? ` · ${r.reason}` : ''}</span>
+              </span>
+              <span className="task-rate">{r.chosen ? fmt.k(rate(r)) : '-'}</span>
+              <Verdict action={r.action} />
+            </li>
+          ))}
+        </ul>
       </Card>
 
       {bosses?.length > 0 && (
-        <Card title="Boss task options">
-          <div className="chips">{bosses.map((b) => <button key={b.task} className="chip" onClick={() => go('boss', b.task)}>{b.task} <Verdict action={b.sheetAction} /></button>)}</div>
+        <Card title="Boss tasks">
+          <div className="tiles">
+            {bosses.map((b) => (
+              <button key={b.task} className="tile" onClick={() => go('boss', b.task)}>
+                <Portrait img={data.imageFor(b.task)} size={48} />
+                <span>{b.task}</span>
+                {b.sheetAction && <Verdict action={b.sheetAction} />}
+              </button>
+            ))}
+          </div>
         </Card>
       )}
     </div>

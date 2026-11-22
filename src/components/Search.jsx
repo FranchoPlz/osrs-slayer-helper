@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { go } from '../store.js';
 import { norm } from '../lib/engine.js';
+import { Portrait } from './ui.jsx';
 
 /** Build autocomplete entries: tasks, bosses, monster variants (sheet + wiki) mapped to their task */
 export function buildIndex(data) {
@@ -14,16 +15,16 @@ export function buildIndex(data) {
   };
   for (const t of data.allTasks) {
     if (t.boss) add(t.name, 'Boss task', ['boss', t.name], 3);
-    else add(t.name, `Slayer task · ${t.masters.length} masters`, ['task', t.name], 4);
+    else add(t.name, 'Slayer task', ['task', t.name], 4);
   }
   for (const name of Object.keys(data.wiki?.bosses || {})) add(name, 'Boss', ['boss', name], 3);
   for (const m of data.sheet.mobs) {
     if (m.task === 'Like a Boss') continue;
     const base = m.variant.replace(/\s*\(.*\)/, '');
-    if (norm(base) !== norm(m.task)) add(base, `→ ${m.task} task`, ['task', m.task], 2);
+    if (norm(base) !== norm(m.task)) add(base, `${m.task} task`, ['task', m.task], 2);
   }
   for (const [task, w] of Object.entries(data.wiki?.tasks || {})) {
-    for (const v of w.variants || []) if (norm(v.monster) !== norm(task)) add(v.monster, `→ ${task} task`, ['task', task], 1);
+    for (const v of w.variants || []) if (norm(v.monster) !== norm(task)) add(v.monster, `${task} task`, ['task', task], 1);
   }
   return entries;
 }
@@ -62,7 +63,7 @@ export default function Search({ data, autoFocus, compact }) {
         ref={inputRef}
         autoFocus={autoFocus}
         type="search"
-        placeholder="Search a monster or task… (e.g. abyssal, gargoyle, hydra)"
+        placeholder="Monster or task, e.g. hydra"
         value={q}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -80,12 +81,13 @@ export default function Search({ data, autoFocus, compact }) {
           {results.map((r, i) => (
             <li key={r.label + r.route.join()} role="option" aria-selected={i === active}
               className={i === active ? 'active' : ''} onMouseDown={() => choose(r)} onMouseEnter={() => setActive(i)}>
+              <Portrait img={data.imageFor(r.route[1])} size={28} />
               <span className="ac-label">{highlight(r.label, q)}</span>
               <span className="ac-sub">{r.sub}</span>
             </li>
           ))}
           <li className={`ac-wiki ${active === results.length ? 'active' : ''}`} onMouseDown={() => choose(null)}>
-            🔎 Look up “{q.trim()}” live on the OSRS Wiki
+            Look up "{q.trim()}" on the OSRS Wiki
           </li>
         </ul>
       )}

@@ -11,7 +11,22 @@ const key = (s) => ALIASES[norm(s)] || norm(s);
 export const MASTER_POINTS = {
   Duradel: 29, Nieve: 26.6, Konar: 35.5, Krystilia: 44, Chaeldar: 17.75, Vannaka: 7.1, Mazchna: 3.03, TuraelSpria: 0,
 };
-export const SKIP_COST = 30;
+const DEFAULT_RULES = { skipCost: 30, maxBlocks: Infinity };
+// Mortimer: skips cost 100, only 2 block slots, and points come only from his "Points" modifier
+export const MASTER_RULES = { Mortimer: { skipCost: 100, maxBlocks: 2 } };
+export const rulesFor = (masterId) => ({ ...DEFAULT_RULES, ...MASTER_RULES[masterId] });
+// Mortimer's five modifiers (points, quantity, clue, superior, XP) are equally likely; we assume all
+// are unlocked (40+ Mortimer tasks), so a task carries the points modifier 1 time in 5.
+const MORTIMER_MODIFIERS = 5;
+
+/** Average points per completed task for a master */
+export function pointsPerTask(master) {
+  if (MASTER_POINTS[master.id] !== undefined) return MASTER_POINTS[master.id];
+  const rated = master.tasks.filter((t) => t.points?.[0] != null);
+  const w = rated.reduce((s, t) => s + t.weight, 0);
+  if (!w) return 0;
+  return rated.reduce((s, t) => s + t.weight * (t.points[0] + t.points[1]) / 2, 0) / w / MORTIMER_MODIFIERS;
+}
 const BETWEEN_TASKS_S = 80;
 
 export const isWildy = (v) => /wild|wildy|revenant|callisto|artio|venenatis|spindel|vet'?ion|calvar|scorpia|chaos ele|chaos fan|crazy arch/i.test(v || '');
@@ -36,21 +51,26 @@ export function indexData(sheet, wiki) {
   for (const m of sheet.mobs) (mobsByTask[key(m.task)] ||= []).push(m);
   const wikiByTask = {};
   for (const [name, w] of Object.entries(wiki?.tasks || {})) wikiByTask[key(name)] = w;
+  // Sheet masters plus masters only on the Wiki (Mortimer)
+  const masters = [...sheet.masters, ...(wiki?.masters || []).filter((m) => !sheet.masters.some((s) => s.id === m.id))];
   const allTasks = new Map();
-  for (const master of sheet.masters) {
+  for (const master of masters) {
     for (const t of master.tasks) {
       const k = t.boss ? `boss:${key(t.task)}` : key(t.task);
       if (!allTasks.has(k)) allTasks.set(k, { key: k, name: t.task, boss: t.boss, masters: [] });
       allTasks.get(k).masters.push(master.id);
     }
   }
+  const wikiOf = (task) => wikiByTask[key(task)] || null;
   return {
-    sheet, wiki,
+    sheet, wiki, masters,
     mobsFor: (task) => mobsByTask[key(task)] || [],
-    wikiFor: (task) => wikiByTask[key(task)] || null,
+    wikiFor: wikiOf,
     bossWiki: (name) => wiki?.bosses?.[name] || null,
+    /** Monster image ({ file, w }) for a task or boss name */
+    imageFor: (name) => wikiOf(name)?.monster?.image || wiki?.bosses?.[name]?.monster?.image || null,
     allTasks: [...allTasks.values()].sort((a, b) => a.name.localeCompare(b.name)),
-    master: (id) => sheet.masters.find((m) => m.id === id),
+    master: (id) => masters.find((m) => m.id === id),
     key,
   };
 }
@@ -87,7 +107,10 @@ const slayerReqOf = (w) => {
 export function evaluateMaster(data, masterId, settings) {
   const master = data.master(masterId);
   if (!master) return { rows: [], summary: null };
-  const { goal = 'xp', slayerLevel = 99, blockSlots = 6, overrides = {} } = settings;
+  const rules = rulesFor(masterId);
+  const { goal = 'xp', slayerLevel = 99, overrides = {} } = settings;
+  const blockSlots = Math.min(settings.blockSlots ?? 6, rules.maxBlocks);
+  const { skipCost } = rules;
 
   // Konar has one row per location; merge into one task with summed weight
   const merged = new Map();
@@ -103,7 +126,7 @@ export function evaluateMaster(data, masterId, settings) {
   const rows = [...merged.values()].map((t) => {
     const ov = overrides[`${masterId}|${t.task}`] || {};
     const wiki = data.wikiFor(t.task);
-    const req = slayerReqOf(wiki);
+    const req = t.slayerReq || slayerReqOf(wiki);
     const length = t.avgLength || ((t.min || 0) + (t.max || 0)) / 2 || 100;
     const variants = data.mobsFor(t.task)
       .filter((m) => masterId !== 'Krystilia' || isWildy(m.variant) || m.gpKillKrystilia != null || m.larrans != null)
@@ -134,14 +157,14 @@ export function evaluateMaster(data, masterId, settings) {
   }
 
   // --- iterative do/skip/block solve ---
-  const pts = MASTER_POINTS[masterId] ?? 0;
+  const pts = pointsPerTask(master);
   const eligible = rows.filter((r) => !r.locked);
   const known = eligible.filter((r) => r.value !== null);
   const fixed = (r) => r.override.action && r.override.action !== 'Auto';
   let R = 0, block = new Set(), skip = new Set();
   const kw = known.reduce((a, r) => a + r.weight, 0);
   const avgHours = kw ? known.reduce((a, r) => a + r.weight * Math.min(r.hours, 3), 0) / kw : 0.5;
-  const skipHours = pts > 0 ? (SKIP_COST / pts) * avgHours : Infinity;
+  const skipHours = pts > 0 ? (skipCost / pts) * avgHours : Infinity;
 
   for (let iter = 0; iter < 12; iter++) {
     const doing = known.filter((r) => !block.has(r) && !skip.has(r) && (!fixed(r) || r.override.action === 'Do'));
@@ -161,11 +184,11 @@ export function evaluateMaster(data, masterId, settings) {
         if (nb.has(r) || fixed(r)) continue;
         if (r.value < R * (1 - skipHours / r.hours)) ns.add(r);
       }
-      // points sustainability: skip weight share * 30 <= points per completed task
+      // points sustainability: skip weight share * skip cost <= points per completed task
       let sk = [...ns].filter((r) => !fixed(r)).sort((a, b) => b.value - a.value);
       const doneW = () => eligible.filter((r) => !nb.has(r) && !ns.has(r)).reduce((s, r) => s + r.weight, 0);
       const skipW = () => [...ns].reduce((s, r) => s + r.weight, 0);
-      while (sk.length && (skipW() / Math.max(doneW(), 1)) * SKIP_COST > pts) ns.delete(sk.shift());
+      while (sk.length && (skipW() / Math.max(doneW(), 1)) * skipCost > pts) ns.delete(sk.shift());
     }
     const same = eqSet(nb, block) && eqSet(ns, skip);
     block = nb; skip = ns;
@@ -177,15 +200,15 @@ export function evaluateMaster(data, masterId, settings) {
     if (r.override.action && r.override.action !== 'Auto') { r.action = r.override.action; r.reason = 'Your choice'; r.manual = true; }
     else if (r.value === null) {
       r.action = normaliseAction(r.sheetAction) || 'Do';
-      r.reason = 'No rate data — using the sheet author\'s call';
+      r.reason = r.sheetAction ? 'No rate data, so this is the sheet author\'s call' : 'No rate data for this task';
     } else if (block.has(r)) r.action = 'Block';
     else if (skip.has(r)) r.action = 'Skip';
     else r.action = 'Do';
     if (r.value !== null && !r.reason) {
       const pct = R ? Math.round(((r.value - R) / R) * 100) : 0;
       const costH = r.weight * r.hours;
-      if (r.action === 'Block') r.reason = `${Math.abs(pct)}% below your average and comes up ${(r.chance * 100).toFixed(1)}% of the time (${r.hours.toFixed(1)}h per task) — one of your ${blockSlots} worst`;
-      else if (r.action === 'Skip') r.reason = `${Math.abs(pct)}% below your average; skipping (30 pts) is cheaper than ${r.hours.toFixed(1)}h on it`;
+      if (r.action === 'Block') r.reason = `${Math.abs(pct)}% below your average and comes up ${(r.chance * 100).toFixed(1)}% of the time (${r.hours.toFixed(1)}h per task). One of your ${blockSlots} worst`;
+      else if (r.action === 'Skip') r.reason = `${Math.abs(pct)}% below your average; skipping (${skipCost} pts) is cheaper than ${r.hours.toFixed(1)}h on it`;
       else r.reason = pct >= 0 ? `${pct}% above your average rate` : `${Math.abs(pct)}% below average, but not worth spending points on`;
       r.cost = costH;
     }
@@ -206,11 +229,46 @@ export function evaluateMaster(data, masterId, settings) {
     skips: rows.filter((r) => r.action === 'Skip'),
     skipRate: doneW ? skipW / (doneW + skipW) : 0,
     pointsPerTask: pts,
-    netPoints: pts - (doneW ? (skipW / doneW) * SKIP_COST : 0),
-    scale, goal, blockSlots,
+    netPoints: pts - (doneW ? (skipW / doneW) * skipCost : 0),
+    scale, goal, blockSlots, skipCost,
   };
   rows.sort((a, b) => b.weight - a.weight || a.task.localeCompare(b.task));
   return { rows, summary, bosses: master.tasks.filter((t) => t.boss) };
+}
+
+export const MODIFIERS = [
+  { id: 'points', label: 'Points' },
+  { id: 'quantity', label: 'Quantity' },
+  { id: 'clue', label: 'Clues' },
+  { id: 'superior', label: 'Superior' },
+  { id: 'xp', label: 'XP' },
+];
+const TIE_ORDER = ['points', 'xp', 'superior', 'clue', 'quantity'];
+
+/**
+ * Mortimer offers 2-3 tasks, each with a modifier. Rank them, best first.
+ * offers: [{ task, mod: MODIFIERS id | null, value?: number (XP% / points; defaults to the task's midpoint) }]
+ * The XP modifier scales Slayer XP/h (xp and balanced goals). Other modifiers break near-ties (within 5%).
+ */
+export function rankOffers(evaluation, offers, goal) {
+  const { rows, summary } = evaluation;
+  const mid = (r) => (r && r[0] != null ? (r[0] + r[1]) / 2 : null);
+  const ranked = offers.map((o) => {
+    const row = rows.find((r) => r.key === key(o.task)) || null;
+    const value = o.value ?? (o.mod === 'xp' ? mid(row?.xpMod) : o.mod === 'points' ? mid(row?.points) : null);
+    let score = row && !row.locked ? row.value : null;
+    if (score != null && o.mod === 'xp' && value && goal !== 'gp') {
+      score = goal === 'xp' ? score * (1 + value / 100) : score + (row.chosen.rates.xph * value) / 100 / summary.scale.xph;
+    }
+    const pct = score != null && summary.avgValue ? Math.round(((score - summary.avgValue) / summary.avgValue) * 100) : null;
+    return { ...o, value, row, score, pct };
+  });
+  const tie = (o) => (o.mod ? TIE_ORDER.indexOf(o.mod) : TIE_ORDER.length);
+  return ranked.sort((a, b) => {
+    if (a.score == null || b.score == null) return (a.score == null) - (b.score == null);
+    const close = Math.abs(a.score - b.score) <= 0.05 * Math.max(Math.abs(a.score), Math.abs(b.score));
+    return close ? tie(a) - tie(b) || b.score - a.score : b.score - a.score;
+  });
 }
 
 function normaliseAction(a) {
@@ -226,7 +284,7 @@ const avg = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
 const eqSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
 
 export const fmt = {
-  k: (n) => (n == null || !Number.isFinite(n) ? '–' : Math.abs(n) >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : `${Math.round(n)}`),
+  k: (n) => (n == null || !Number.isFinite(n) ? '-' : Math.abs(n) >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : `${Math.round(n)}`),
   pct: (n) => `${(n * 100).toFixed(1)}%`,
-  h: (n) => (n == null ? '–' : n < 1 ? `${Math.round(n * 60)}m` : `${n.toFixed(1)}h`),
+  h: (n) => (n == null ? '-' : n < 1 ? `${Math.round(n * 60)}m` : `${n.toFixed(1)}h`),
 };

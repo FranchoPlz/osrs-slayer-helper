@@ -1,23 +1,31 @@
 # OSRS Slayer Helper
 
-A self-hosted PWA for Old School RuneScape slayer. Type a monster and get:
+A self-hosted PWA for Old School RuneScape slayer. Type a monster and the task page shows:
 
-- **Do / Skip / Block** for your slayer master, with the reason (how far above or below your average rate it is, how often it comes up, and its cost in hours or points).
-- **Best way to kill it** for your settings: every method compared on XP/h, GP/h, kills/h and task time, plus extend and bracelet tips.
-- **Where and how to get there**: Wiki location table (multi-combat / cannon / safespot, notes), a link to the interactive map, and transport from each location's Wiki page.
-- **How to fight it**: requirements, attack style and the prayer to use, max hit, lowest defence, elemental weakness, attribute hints (demon, dragon, undead…) and items to bring.
-- **Gear tiered by budget** from the Wiki's recommended-equipment tables, with the tier for your budget highlighted. Also example setups, inventory and full strategy notes.
-- **Masters** tab: full block and skip list, expected XP/h, GP/h and points balance for each master.
-- **Settings**: goal (XP / profit / balanced), Slayer and combat levels, Ancients, cannon, Wilderness, boss variants, slayer helm, gear budget and block slots. Overrides for single tasks are saved on the device.
+- **Do / Skip / Block** for your slayer master, with a one-line reason. Tap "change" to override it for this device.
+- **Best method**: XP/h, GP/h and task time for your settings, plus extend and bracelet tips.
+- **Bring**: protection prayer and required slayer items, as icons.
+- **Where**: the best location, with a link to the interactive map.
+- **Gear**: the item for your budget in every slot, laid out like the worn-equipment screen. It opens on the combat style of the best method.
+
+Everything else sits under **More**: all methods compared, every location with transport, monster stats and weaknesses, all gear tiers, example setups, inventory, strategy notes and monster variants.
+
+Other tabs:
+
+- **Masters**: block and skip list, expected XP/h, GP/h and points for each master.
+- **Mortimer**: his own task list from the Wiki, 2 block slots and a 100 point skip. He offers 2 or 3 tasks, each with a modifier. Enter them in "Pick Mortimer's task" and it ranks them for your goal. The XP modifier scales the task's XP/h. The other modifiers break ties.
+- **Settings**: goal (XP / profit / balanced), Slayer and combat levels, Ancients, cannon, Wilderness, boss variants, slayer helm, gear budget and block slots.
 
 ## Data
 
 | Source | What | Refresh |
 | --- | --- | --- |
 | [Slayer efficiency sheet](https://docs.google.com/spreadsheets/d/1WM2rbCBiNTyOXTwOwXO6WltO4dfPO7cler4-ruCet7o) | master weights, task lengths, author's do/skip/block, per-method kills/xp/gp per hour | `npm run sync:sheet` |
-| OSRS Wiki (`Slayer task/*`, monster pages, `*/Strategies`, location pages) | requirements, locations, transport, tiered gear, strategy | `npm run sync:wiki` |
+| OSRS Wiki (`Slayer task/*`, monster pages, `*/Strategies`, location pages, `Mortimer`) | requirements, locations, transport, tiered gear, strategy, Mortimer's task list, image sizes | `npm run sync:wiki` |
 
 Both are snapshotted into `public/data/*.json` and precached by the service worker, so the app works offline. Each monster page also has **Refresh from the Wiki** for live data, and any name not in the snapshot can be looked up live from the search box.
+
+Monster renders, chatheads and item icons load straight from the Wiki. The service worker keeps them in a cache for 90 days, so they also work offline once seen. The pixel fonts are the [RuneStar fonts](https://github.com/RuneStar/fonts) (CC0), bundled in `public/fonts/`.
 
 ## Develop
 
@@ -26,6 +34,7 @@ npm install
 npm run sync      # optional: refresh sheet + wiki snapshot
 npm run dev       # http://localhost:5173
 npm run build     # -> dist/
+npm test          # bun test: parsing, Mortimer rules, offer ranking
 ```
 
 `dist/` is committed on purpose: the server only needs Python 3 (no Node), like osrs_flipper.

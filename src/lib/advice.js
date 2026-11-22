@@ -1,19 +1,20 @@
 // Derived, rule-based advice from wiki monster data + text
 
+// [name, covered by a slayer helmet, Wiki icon file (defaults to `${name}.png`)]
 const SLAYER_ITEMS = [
   ['Nose peg', true], ['Earmuffs', true], ['Facemask', true], ['Spiny helmet', true], ['Reinforced goggles', true],
-  ['Rock hammer'], ['Rock thrownhammer'], ['Granite hammer'], ['Bag of salt'], ['Ice cooler'], ['Fungicide spray'],
-  ['Leaf-bladed'], ['Mirror shield'], ["V's shield"], ['Witchwood icon'], ['Insulated boots'], ['Boots of stone'],
-  ['Slayer gloves'], ['Fishing explosive'], ['Anti-dragon shield'], ['Dragonfire shield'], ['Antifire'],
-  ['Light source'], ['Teleport anchoring scroll'], ['Ectophial'], ['Salve amulet'], ['Brittle key'], ['Holy water'],
-  ['Lit bug lantern'], ['Wolfbane'], ['Silver sickle'], ['Rope'], ['Dramen staff'],
+  ['Rock hammer'], ['Rock thrownhammer'], ['Granite hammer'], ['Bag of salt'], ['Ice cooler'], ['Fungicide spray', false, 'Fungicide.png'],
+  ['Leaf-bladed', false, 'Leaf-bladed sword.png'], ['Mirror shield'], ["V's shield"], ['Witchwood icon'], ['Insulated boots'], ['Boots of stone'],
+  ['Slayer gloves'], ['Fishing explosive'], ['Anti-dragon shield'], ['Dragonfire shield'], ['Antifire', false, 'Antifire potion(4).png'],
+  ['Light source', false, 'Bullseye lantern.png'], ['Teleport anchoring scroll'], ['Ectophial'], ['Salve amulet', false, 'Salve amulet(ei).png'],
+  ['Brittle key'], ['Holy water'], ['Lit bug lantern'], ['Wolfbane'], ['Silver sickle'], ['Rope'], ['Dramen staff'],
 ];
 
 /** Items/unlocks the text says you need or that are strongly recommended */
 export function requiredItems(...texts) {
   const t = texts.filter(Boolean).join('\n').toLowerCase();
   const out = [];
-  for (const [name, helm] of SLAYER_ITEMS) if (t.includes(name.toLowerCase().replace(/-/g, '')) || t.includes(name.toLowerCase())) out.push({ name, coveredByHelm: !!helm });
+  for (const [name, helm, icon] of SLAYER_ITEMS) if (t.includes(name.toLowerCase().replace(/-/g, '')) || t.includes(name.toLowerCase())) out.push({ name, coveredByHelm: !!helm, icon: icon || `${name}.png` });
   return out;
 }
 

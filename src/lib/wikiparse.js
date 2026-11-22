@@ -6,6 +6,20 @@ export const API = `${WIKI}/api.php`;
 export const wikiUrl = (title) => `${WIKI}/w/${encodeURIComponent(title.replace(/ /g, '_'))}`;
 export const mapUrl = (m) => (m ? `https://maps.runescape.wiki/osrs/#4/${m.plane || 0}/${m.mapID ?? 0}/${m.x}/${m.y}` : null);
 
+/**
+ * URL of a Wiki image. `img` is a file name or { file, w } (w = original width, from fetchImageWidths).
+ * Images wider than `width` are served as a `width`px thumbnail; smaller ones as the original.
+ */
+export function imgUrl(img, width) {
+  const file = typeof img === 'string' ? img : img?.file;
+  if (!file) return null;
+  const f = encodeURIComponent(file.replace(/ /g, '_'));
+  return width && img?.w > width ? `${WIKI}/images/thumb/${f}/${width}px-${f}` : `${WIKI}/images/${f}`;
+}
+
+/** File name from a [[File:X.png|...]] link */
+export const fileOf = (raw) => (raw || '').match(/\[\[\s*(?:File|Image):([^|\]]+)/i)?.[1].trim() || null;
+
 // ---------- low level scanning ----------
 
 /** Find top-level templates {{Name ...}} (case-insensitive name match). Returns [{start,end,inner}] */
@@ -255,8 +269,9 @@ export function parseTaskPage(wt, title) {
       if (!tpl) continue;
       const { named } = templateParams(tpl.inner);
       const slots = {};
+      const EQ_SLOT = { torso: 'body', gloves: 'hands', boots: 'feet' };
       for (const s of ['head', 'cape', 'neck', 'ammo', 'weapon', 'torso', 'shield', 'legs', 'gloves', 'boots', 'ring', 'special']) {
-        if (named[s]) slots[s] = toPlain(named[s]);
+        if (named[s]) slots[EQ_SLOT[s] || s] = itemOf(named[s]);
       }
       const text = toPlain(chunk.slice(tpl.end)).split('\n\n').slice(0, 3).join('\n\n');
       out.equipment.push({ name: m ? toPlain(m[1]) : 'Recommended', slots, text });
@@ -313,8 +328,10 @@ export function parseMonsterPage(wt, title) {
   const styleDefs = { Stab: defs.stab, Slash: defs.slash, Crush: defs.crush, Magic: defs.magic, Ranged: ranged.length ? Math.min(...ranged) : n('drange') };
   const valid = Object.entries(styleDefs).filter(([, v]) => v !== null);
   valid.sort((a, b) => a[1] - b[1]);
+  const image = fileOf(named.image ?? named.image1);
   return {
     title,
+    image: image ? { file: image } : null,
     combat: g('combat'), hitpoints: g('hitpoints'), maxHit: g('max hit'),
     attackStyle: g('attack style'), aggressive: g('aggressive'), poisonous: g('poisonous'),
     attributes: g('attributes'), size: g('size'), slayerLevel: g('slaylvl'), slayerXp: g('slayxp'),
@@ -353,6 +370,24 @@ export async function fetchWikitext(titles, { userAgent } = {}) {
   return out;
 }
 
+/** Original pixel widths of up to 50 Wiki files: { [file]: width }. Missing files are left out. */
+export async function fetchImageWidths(files, { userAgent } = {}) {
+  const params = new URLSearchParams({
+    action: 'query', prop: 'imageinfo', iiprop: 'size', titles: files.map((f) => `File:${f}`).join('|'),
+    format: 'json', formatversion: '2', origin: '*',
+  });
+  const res = await fetch(`${API}?${params}`, { headers: userAgent ? { 'User-Agent': userAgent } : {} });
+  if (!res.ok) throw new Error(`Wiki HTTP ${res.status}`);
+  const q = (await res.json()).query || {};
+  const alias = Object.fromEntries((q.normalized || []).map((n) => [n.to, n.from]));
+  const out = {};
+  for (const p of q.pages || []) {
+    const w = p.imageinfo?.[0]?.width;
+    if (w) out[(alias[p.title] || p.title).replace(/^File:/, '')] = w;
+  }
+  return out;
+}
+
 /** Candidate wiki task-page titles for a sheet task name */
 export function taskPageCandidates(task) {
   const base = task.trim();
@@ -383,7 +418,22 @@ export function monsterPageCandidates(name) {
 
 const RE_SLOTS = ['head', 'neck', 'cape', 'body', 'legs', 'weapon', 'shield', 'ammo', 'hands', 'feet', 'ring', 'special'];
 
-/** Returns [{ style, slots: { head: ['best', 'next', ...], ... } }] */
+/** A gear cell -> { name, icon }: display text plus the icon of its first linked item */
+export function itemOf(raw) {
+  const name = toPlain(raw).replace(/\s*\n\s*/g, ' ').trim();
+  const tpl = (raw.match(/\{\{\s*plink[pt]?\s*\|[^{}]*\}\}/i) || [])[0];
+  let page = null, pic = null;
+  if (tpl) {
+    const { named, positional } = templateParams(tpl.slice(2, -2));
+    page = positional[0]; pic = named.pic;
+  } else {
+    page = raw.match(/\[\[([^\]|]+)/)?.[1];
+  }
+  page = (pic || page || (name.length < 40 ? name : '')).replace(/#.*$/, '').trim();
+  return { name, icon: page ? `${page[0].toUpperCase()}${page.slice(1)}.png` : null };
+}
+
+/** Returns [{ style, slots: { head: [{ name, icon }, ...best to cheapest], ... } }] */
 export function parseRecommendedEquipment(wt) {
   const sets = [];
   for (const tpl of findTemplates(wt, 'Recommended equipment')) {
@@ -394,14 +444,47 @@ export function parseRecommendedEquipment(wt) {
       for (let i = 1; i <= 12; i++) {
         const v = named[`${s}${i}`];
         if (v === undefined) continue;
-        const txt = toPlain(v).replace(/\s*\n\s*/g, ' ').trim();
-        if (txt) tiers.push(txt);
+        const item = itemOf(v);
+        if (item.name) tiers.push(item);
       }
       if (tiers.length) slots[s] = tiers;
     }
     if (Object.keys(slots).length) sets.push({ style: toPlain(named.style || 'Recommended'), slots });
   }
   return sets;
+}
+
+/**
+ * Task table of a Slayer Master page (used for Mortimer, who is not in the efficiency sheet).
+ * Returns [{ task, page, min, max, eMin, eMax, weight, slayerReq, points: [lo, hi], xpMod: [lo, hi] }]
+ */
+export function parseMasterPage(wt) {
+  const range = (s) => {
+    const m = toPlain(s || '').match(/(-?\d+)%?\s*[-–]\s*(-?\d+)/);
+    return m ? [+m[1], +m[2]] : [null, null];
+  };
+  for (const tbl of parseTables(wt)) {
+    const H = tbl.header.map((h) => toPlain(h).replace(/^\|/, '').toLowerCase());
+    if (H[0] !== 'monster' || !H.includes('weight')) continue;
+    const col = (re) => H.findIndex((h) => re.test(h));
+    const iA = col(/^amount/), iE = col(/^extended/), iW = col(/^weight/), iR = col(/unlock|requirement/), iP = col(/^points/), iX = col(/^xp/);
+    return tbl.rows.map((r) => {
+      const link = r[0].match(/\[\[([^\]|#]+)(?:\|([^\]]+))?\]\]/);
+      const wTpl = findTemplates(r[iW] || '', '+=')[0];
+      const weight = wTpl ? +templateParams(wTpl.inner).positional[1] : parseFloat(toPlain(r[iW]));
+      const [min, max] = range(r[iA]);
+      const [eMin, eMax] = range(r[iE]);
+      return {
+        task: toPlain(link ? link[2] || link[1] : r[0]).trim(),
+        page: link ? link[1].trim() : null,
+        min, max, eMin, eMax, weight,
+        slayerReq: +((r[iR] || '').match(/\{\{\s*scp\s*\|\s*slayer\s*\|\s*(\d+)/i)?.[1] || 1),
+        points: iP >= 0 ? range(r[iP]) : null,
+        xpMod: iX >= 0 ? range(r[iX]) : null,
+      };
+    }).filter((t) => t.task && Number.isFinite(t.weight));
+  }
+  return [];
 }
 
 /** Plain text of a named section (first match, includes children), capped */

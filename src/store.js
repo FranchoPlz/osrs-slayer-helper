@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { fetchWikitext, parseTaskPage, parseMonsterPage, parseRecommendedEquipment, sectionText, taskPageCandidates, monsterPageCandidates, toPlain, splitSections } from './lib/wikiparse.js';
+import { fetchWikitext, fetchImageWidths, parseTaskPage, parseMonsterPage, parseRecommendedEquipment, sectionText, taskPageCandidates, monsterPageCandidates, toPlain, splitSections } from './lib/wikiparse.js';
 
 const KEY = 'slayer-helper:settings:v1';
 
@@ -58,9 +58,14 @@ export function loadData() {
 }
 
 // ---------- live wiki lookups (cached per browser) ----------
-const LIVE = 'slayer-helper:live:';
+// v2: gear tiers are { name, icon } objects and monsters carry an image
+const LIVE = 'slayer-helper:live2:';
 export function getLive(name) {
   try { return JSON.parse(localStorage.getItem(LIVE + name) || 'null'); } catch { return null; }
+}
+/** Names looked up live in this browser, most recent last */
+export function recentLookups(n = 5) {
+  try { return Object.keys(localStorage).filter((k) => k.startsWith(LIVE)).map((k) => k.slice(LIVE.length)).slice(-n); } catch { return []; }
 }
 
 /** Fetch fresh task + monster + strategies data from the OSRS Wiki for a task/monster name */
@@ -80,6 +85,10 @@ export async function liveLookup(name, hintPage) {
   const second = await fetchWikitext([result.monsterPage, `${result.monsterPage}/Strategies`]);
   const mp = second[result.monsterPage];
   if (mp) result.monster = parseMonsterPage(mp.wikitext, mp.title);
+  if (result.monster?.image) {
+    const w = await fetchImageWidths([result.monster.image.file]).catch(() => ({}));
+    result.monster.image.w = w[result.monster.image.file];
+  }
   const sp = second[`${result.monsterPage}/Strategies`];
   if (sp) {
     result.strategiesTitle = sp.title;

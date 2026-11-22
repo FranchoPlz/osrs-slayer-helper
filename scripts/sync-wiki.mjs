@@ -1,10 +1,12 @@
-// Builds an offline snapshot of OSRS Wiki slayer data for every task in public/data/sheet.json
-// Output: public/data/wiki.json  { tasks: { [sheetTask]: {...} }, bosses: { [boss]: {...} } }
+// Builds an offline snapshot of OSRS Wiki slayer data for every task in public/data/sheet.json,
+// plus masters the sheet doesn't cover (Mortimer) from their Wiki pages.
+// Output: public/data/wiki.json  { masters: [...], tasks: { [task]: {...} }, bosses: { [boss]: {...} }, places }
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fetchWikitext, parseTaskPage, parseMonsterPage, taskPageCandidates, monsterPageCandidates, parseRecommendedEquipment, sectionText, placePage, toPlain, splitSections } from '../src/lib/wikiparse.js';
+import { fetchWikitext, fetchImageWidths, parseTaskPage, parseMonsterPage, parseMasterPage, taskPageCandidates, monsterPageCandidates, parseRecommendedEquipment, sectionText, placePage, toPlain, splitSections } from '../src/lib/wikiparse.js';
+import { norm } from '../src/lib/engine.js';
 
-const UA = 'osrs-slayer-helper/0.1 (personal self-hosted PWA; build-time snapshot)';
+const UA = 'osrs-slayer-helper/0.2 (personal self-hosted PWA; build-time snapshot)';
 const SHEET = path.resolve('public/data/sheet.json');
 const OUT = path.resolve('public/data/wiki.json');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -31,6 +33,8 @@ const OVERRIDES = {
   'Scabarite': 'Slayer task/Scabarites',
 };
 const BOSS_PAGE = { 'Barrows Brothers': 'Barrows', 'Dagannoth Kings': 'Dagannoth Kings', 'Whisperer': 'The Whisperer', 'Leviathan': 'The Leviathan' };
+// Slayer masters missing from the efficiency sheet: task list, weights and amounts come from their Wiki page
+const WIKI_MASTERS = ['Mortimer'];
 
 async function batchFetch(titles) {
   const out = {};
@@ -53,6 +57,20 @@ const taskNames = new Set(), bossNames = new Set();
 for (const m of sheet.masters) for (const t of m.tasks) (t.weight > 0 ? taskNames : bossNames).add(t.task);
 // Boss options from "Like a Boss" in mob data
 for (const mob of sheet.mobs) if (mob.task === 'Like a Boss') bossNames.add(mob.variant.replace(/\s*\(Like a Boss\)/, ''));
+
+const masterPages = await fetchWikitext(WIKI_MASTERS, { userAgent: UA });
+const masters = WIKI_MASTERS.map((id) => ({ id, label: id, tasks: parseMasterPage(masterPages[id]?.wikitext || '') }));
+const knownKeys = new Set([...taskNames].map(norm));
+for (const m of masters) {
+  if (!m.tasks.length) throw new Error(`No task table parsed from the ${m.id} Wiki page`);
+  console.log(`${m.id}: ${m.tasks.length} tasks from the Wiki`);
+  for (const t of m.tasks) {
+    if (knownKeys.has(norm(t.task))) continue;
+    knownKeys.add(norm(t.task));
+    taskNames.add(t.task);
+    if (t.page?.startsWith('Slayer task/')) OVERRIDES[t.task] ||= t.page;
+  }
+}
 
 console.log(`Resolving ${taskNames.size} tasks, ${bossNames.size} bosses`);
 const candidates = {};
@@ -116,6 +134,17 @@ for (const b of bossNames) {
   };
 }
 
+// Pixel widths of monster images, so the app can request thumbnails only for big ones
+const imageRefs = [...Object.values(tasks), ...Object.values(bosses)].map((x) => x.monster?.image).filter(Boolean);
+const files = [...new Set(imageRefs.map((i) => i.file))];
+const widths = {};
+for (let i = 0; i < files.length; i += 45) {
+  Object.assign(widths, await fetchImageWidths(files.slice(i, i + 45), { userAgent: UA }));
+  await sleep(400);
+}
+for (const img of imageRefs) if (widths[img.file]) img.w = widths[img.file];
+console.log(`Image sizes for ${Object.keys(widths).length}/${files.length} monster images`);
+
 // "How to get there" for every location mentioned in task location tables
 const placeNames = new Set();
 for (const t of Object.values(tasks)) for (const l of t.locations || []) if (placePage(l.name)) placeNames.add(placePage(l.name));
@@ -129,6 +158,6 @@ for (const p of placeNames) {
   places[p] = { title: pg.title, transport: transport || toPlain(splitSections(pg.wikitext)[0].body).slice(0, 600) };
 }
 
-await fs.writeFile(OUT, JSON.stringify({ fetchedAt: new Date().toISOString(), tasks, bosses, places }));
+await fs.writeFile(OUT, JSON.stringify({ fetchedAt: new Date().toISOString(), masters, tasks, bosses, places }));
 const size = (await fs.stat(OUT)).size;
 console.log(`Wrote ${OUT} (${(size / 1024).toFixed(0)} KB)`);

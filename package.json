@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --host",
+    "test": "bun test",
     "sync:sheet": "node scripts/sync-sheet.mjs",
     "sync:wiki": "node scripts/sync-wiki.mjs",
     "sync": "npm run sync:sheet && npm run sync:wiki"
