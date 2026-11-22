@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
-  Card, Collapsible, EquipmentSetups, GearPick, GearTiers, GettingThere, Img, Item, LocationPick, Portrait, Prose, Routes, Stat, Verdict, sortLocations,
+  Card, Collapsible, EquipmentSetups, GearPick, GearTiers, GettingThere, Icon, Img, Item, LocationPick, Portrait, Prose, Routes, Stat, Verdict, sortLocations,
 } from './ui.jsx';
 import { fmt } from '../lib/engine.js';
-import { prayerFor, requiredItems, transportOptions, weaponHints, ytSearch } from '../lib/advice.js';
-import { ICON, MASTER_IMG, PRAYER_IMG } from '../lib/icons.js';
+import { STYLE_LABEL, bringItems, prayerFor, recommendStyle, transportOptions, weaponHints, ytSearch } from '../lib/advice.js';
+import { ICON, MASTER_IMG, PRAYER_IMG, SKILL_IMG } from '../lib/icons.js';
 import { placePage, wikiUrl } from '../lib/wikiparse.js';
 import { getLive, go, liveLookup, setOverride, setSettings } from '../store.js';
+
+const STYLE_IMG = { melee: SKILL_IMG.attack, ranged: SKILL_IMG.ranged, magic: SKILL_IMG.magic };
 
 export default function TaskView({ data, name, settings, evaluation, lookupOnly }) {
   const snapshot = lookupOnly ? null : data.wikiFor(name);
@@ -28,11 +30,19 @@ export default function TaskView({ data, name, settings, evaluation, lookupOnly 
   const masterLabel = data.master(settings.master)?.label || settings.master;
   const monster = wiki?.monster;
   const chosen = row?.chosen;
-  const items = requiredItems(wiki?.infobox?.otherReq, wiki?.intro, wiki?.strategy?.slice(0, 2500));
   const prayers = prayerFor(monster?.attackStyle);
   const locations = sortLocations(wiki?.locations, chosen?.mob.variant);
   const [pickedLoc, setPickedLoc] = useState(null);
   const loc = locations.find((l) => l.name === pickedLoc) || locations[0];
+  const items = bringItems(
+    data.wiki?.slayerEquipment,
+    [name, wiki?.title?.replace(/^Slayer task\//, ''), monster?.title, ...(wiki?.variants || []).map((v) => v.page), loc && placePage(loc.name)],
+    [wiki?.infobox?.otherReq, wiki?.intro, wiki?.strategy?.slice(0, 2500)],
+  );
+  const style = recommendStyle(chosen?.mob.variant, monster);
+  // Task-specific Wiki gear, else the general Slayer setups from the Wiki's Slayer training guide
+  const ownGear = wiki?.gearTiers?.length > 0;
+  const gear = ownGear ? wiki.gearTiers : data.wiki?.slayerGear || [];
   const image = monster?.image || data.imageFor(name);
 
   return (
@@ -83,17 +93,26 @@ export default function TaskView({ data, name, settings, evaluation, lookupOnly 
           <div className="duo">
             {loc && <LocationPick locations={locations} current={loc} onPick={setPickedLoc} />}
 
-            {wiki && (prayers.length > 0 || items.length > 0) && (
+            {wiki && (
               <Card title="Bring" icon={ICON.inventory}>
+                <p className="style-pick"><Icon file={STYLE_IMG[style.style]} alt="" /> Fight with <b>{STYLE_LABEL[style.style]}</b> <span className="small muted">({style.why})</span></p>
                 <div className="item-list">
                   {prayers.map((p) => PRAYER_IMG[p]
                     ? <Item key={p} name={p} icon={PRAYER_IMG[p]} />
                     : <Item key={p} name={p} icon="Anti-dragon shield.png" />)}
                   {items.map((i) => {
                     const helm = i.coveredByHelm && settings.slayerHelm;
-                    return <Item key={i.name} name={helm ? `${i.name} (helm)` : i.name} icon={helm ? ICON.helm : i.icon} dim={helm} note={i.coveredByHelm ? 'Covered by a slayer helmet' : undefined} />;
+                    return <Item key={i.name} name={helm ? `${i.name} (helm)` : i.name} icon={helm ? ICON.helm : i.icon} dim={helm} note={i.coveredByHelm ? 'Covered by a slayer helmet' : i.for && `Needed for ${i.for}`} />;
                   })}
                 </div>
+                {wiki.inventoryItems?.length > 0 && (
+                  <>
+                    <h4 className="sub">Wiki inventory</h4>
+                    <div className="item-list">
+                      {wiki.inventoryItems.map((i) => <Item key={i.name} name={i.count > 1 ? `${i.count} × ${i.name}` : i.name} icon={i.icon} />)}
+                    </div>
+                  </>
+                )}
               </Card>
             )}
           </div>
@@ -101,21 +120,22 @@ export default function TaskView({ data, name, settings, evaluation, lookupOnly 
           {loc && <GettingThere key={loc.name} l={loc} place={data.wiki?.places?.[placePage(loc.name)]} />}
         </div>
 
-        {wiki?.gearTiers?.length > 0 && (
+        {gear.length > 0 && (
           <Card title="Gear" icon={ICON.equipment} className="gear-card" right={<a className="small" href="#/settings">budget: {settings.budget}</a>}>
-            <GearPick key={chosen?.mob.variant} sets={wiki.gearTiers} budget={settings.budget} variant={chosen?.mob.variant} />
+            <GearPick key={`${chosen?.mob.variant}${style.style}`} sets={gear} budget={settings.budget} style={style.style} />
+            {!ownGear && <p className="small muted">No setup for this task on the Wiki, so this is its general Slayer gear from <a href={wikiUrl('Slayer training')} target="_blank" rel="noreferrer">Slayer training</a>.</p>}
           </Card>
         )}
       </div>
 
       <Collapsible title="More" className="more">
-        <More data={data} name={name} row={row} wiki={wiki} live={live} settings={settings} refresh={refresh} loading={loading} />
+        <More data={data} name={name} row={row} wiki={wiki} live={live} settings={settings} refresh={refresh} loading={loading} gear={gear} />
       </Collapsible>
     </div>
   );
 }
 
-function More({ data, name, row, wiki, live, settings, refresh, loading }) {
+function More({ data, name, row, wiki, live, settings, refresh, loading, gear }) {
   const monster = wiki?.monster;
   const hints = weaponHints(monster);
   const chosen = row?.chosen;
@@ -166,7 +186,7 @@ function More({ data, name, row, wiki, live, settings, refresh, loading }) {
         </section>
       )}
 
-      {wiki?.gearTiers?.length > 0 && <section><h3>Every gear tier</h3><GearTiers sets={wiki.gearTiers} budget={settings.budget} /></section>}
+      {gear.length > 0 && <section><h3>Every gear tier</h3><GearTiers sets={gear} budget={settings.budget} /></section>}
       {wiki?.equipment?.length > 0 && <section><h3>Example setups</h3><EquipmentSetups setups={wiki.equipment} /></section>}
       {wiki?.inventory && <Collapsible title="Inventory"><Prose text={wiki.inventory} /></Collapsible>}
       {wiki?.intro && <Collapsible title="Strategy"><Prose text={[wiki.intro, wiki.strategy].filter(Boolean).join('\n\n')} /></Collapsible>}

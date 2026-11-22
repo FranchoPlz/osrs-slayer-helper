@@ -159,6 +159,8 @@ main { max-width: 1440px; margin: 0 auto; padding: 14px 18px 24px; }
 .item-icon { width: 32px; height: 30px; display: grid; place-items: center; background: var(--slot); border-radius: 2px; }
 .item-icon img { max-width: 30px; max-height: 28px; }
 .item.dim { opacity: .55; }
+.style-pick { margin: 0 0 10px; }
+h4.sub { margin: 12px 0 6px; font-size: .85rem; font-weight: normal; color: var(--muted); }
 
 .best-loc { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
 .best-loc strong { font-size: 1.05rem; }

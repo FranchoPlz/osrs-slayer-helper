@@ -1,9 +1,9 @@
 // Builds an offline snapshot of OSRS Wiki slayer data for every task in public/data/sheet.json,
 // plus masters the sheet doesn't cover (Mortimer) from their Wiki pages.
-// Output: public/data/wiki.json  { masters: [...], tasks: { [task]: {...} }, bosses: { [boss]: {...} }, places }
+// Output: public/data/wiki.json  { masters: [...], tasks: { [task]: {...} }, bosses: { [boss]: {...} }, places, slayerGear, slayerEquipment }
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fetchWikitext, fetchImageWidths, parseTaskPage, parseMonsterPage, parseMasterPage, taskPageCandidates, monsterPageCandidates, parseRecommendedEquipment, sectionText, placePage, placeEntrance, toPlain, splitSections } from '../src/lib/wikiparse.js';
+import { fetchWikitext, fetchImageWidths, parseTaskPage, parseMonsterPage, parseMasterPage, taskPageCandidates, monsterPageCandidates, parseRecommendedEquipment, sectionText, placePage, placeEntrance, toPlain, splitSections, addSets, parseInventory, parseSlayerEquipment, strategyPageCandidates } from '../src/lib/wikiparse.js';
 import { norm } from '../src/lib/engine.js';
 
 const UA = 'osrs-slayer-helper/0.2 (personal self-hosted PWA; build-time snapshot)';
@@ -93,6 +93,7 @@ for (const t of missing) monsterPageCandidates(t).forEach((c) => monsterTitles.a
 
 console.log(`Fetching ${monsterTitles.size} monster infoboxes + ${bossNames.size} boss pages`);
 const stratTitles = [...monsterTitles].map((m) => `${m}/Strategies`);
+for (const t of taskNames) if (!tasks[t].missing) stratTitles.push(...strategyPageCandidates(tasks[t]));
 const bossTitles = [...bossNames].flatMap((b) => [BOSS_PAGE[b] || b, `${BOSS_PAGE[b] || b}/Strategies`]);
 const mpages = await batchFetch([...monsterTitles, ...stratTitles, ...bossTitles]);
 
@@ -100,15 +101,17 @@ for (const t of taskNames) {
   const tk = tasks[t];
   const mp = tk.missing ? monsterPageCandidates(t).map((c) => mpages[c]).find(Boolean) : mpages[tk.monsterPage];
   tk.monster = mp ? parseMonsterPage(mp.wikitext, mp.title) : null;
-  const sp = !tk.missing && mpages[`${tk.monsterPage}/Strategies`];
+  const sp = !tk.missing && strategyPageCandidates(tk).map((c) => mpages[c]).find(Boolean);
   if (sp) {
     tk.strategiesTitle = sp.title;
-    const extra = parseRecommendedEquipment(sp.wikitext);
-    tk.gearTiers = [...(tk.gearTiers || []), ...extra];
+    tk.gearTiers = addSets(tk.gearTiers || [], parseRecommendedEquipment(sp.wikitext));
     if (!tk.inventory) tk.inventory = sectionText(sp.wikitext, /^inventory/i, 1200);
+    if (!tk.inventoryItems?.length) tk.inventoryItems = parseInventory(sp.wikitext);
     const more = sectionText(sp.wikitext, /strateg|mechanic|fight/i, 3000);
     if (more) tk.strategy = [tk.strategy, more].filter(Boolean).join('\n\n');
   }
+  const ms = mp && sectionText(mp.wikitext, /^strateg/i, 2000);
+  if (ms) tk.strategy = [tk.strategy, ms].filter(Boolean).join('\n\n');
   if (tk.missing && mp) {
     tk.title = mp.title; tk.missing = false;
     tk.intro = toPlain(splitSections(mp.wikitext)[0].body).slice(0, 1500);
@@ -158,6 +161,12 @@ for (const p of placeNames) {
   places[p] = { title: pg.title, transport: transport || toPlain(splitSections(pg.wikitext)[0].body).slice(0, 600), entrance: placeEntrance(pg.wikitext) };
 }
 
-await fs.writeFile(OUT, JSON.stringify({ fetchedAt: new Date().toISOString(), masters, tasks, bosses, places }));
+// General Slayer gear per combat style, for tasks without their own, and the Slayer equipment table (which item each monster needs)
+const general = await fetchWikitext(['Slayer training', 'Slayer equipment'], { userAgent: UA });
+const slayerGear = parseRecommendedEquipment(general['Slayer training']?.wikitext || '');
+const slayerEquipment = parseSlayerEquipment(general['Slayer equipment']?.wikitext || '');
+console.log(`General Slayer gear: ${slayerGear.length} sets, ${slayerEquipment.length} Slayer equipment items`);
+
+await fs.writeFile(OUT, JSON.stringify({ fetchedAt: new Date().toISOString(), masters, tasks, bosses, places, slayerGear, slayerEquipment }));
 const size = (await fs.stat(OUT)).size;
 console.log(`Wrote ${OUT} (${(size / 1024).toFixed(0)} KB)`);

@@ -7,7 +7,7 @@ const SLAYER_ITEMS = [
   ['Leaf-bladed', false, 'Leaf-bladed sword.png'], ['Mirror shield'], ["V's shield"], ['Witchwood icon'], ['Insulated boots'], ['Boots of stone'],
   ['Slayer gloves'], ['Fishing explosive'], ['Anti-dragon shield'], ['Dragonfire shield'], ['Antifire', false, 'Antifire potion(4).png'],
   ['Light source', false, 'Bullseye lantern.png'], ['Teleport anchoring scroll'], ['Ectophial'], ['Salve amulet', false, 'Salve amulet(ei).png'],
-  ['Brittle key'], ['Holy water'], ['Lit bug lantern'], ['Wolfbane'], ['Silver sickle'], ['Rope'], ['Dramen staff'],
+  ['Brittle key'], ['Holy water'], ['Lit bug lantern'], ['Wolfbane'], ['Silver sickle'], ['Dramen staff'],
 ];
 
 /** Items/unlocks the text says you need or that are strongly recommended */
@@ -16,6 +16,53 @@ export function requiredItems(...texts) {
   const out = [];
   for (const [name, helm, icon] of SLAYER_ITEMS) if (t.includes(name.toLowerCase().replace(/-/g, '')) || t.includes(name.toLowerCase())) out.push({ name, coveredByHelm: !!helm, icon: icon || `${name}.png` });
   return out;
+}
+
+const HELM_PART = /^(nose ?peg|earmuffs|facemask|spiny helmet|reinforced goggles)$/i;
+const pageKey = (s) => (s || '').toLowerCase().replace(/[^a-z]/g, '').replace(/s$/, '');
+
+/**
+ * What to bring: items from the Wiki "Slayer equipment" table whose uses link one of `pages` (task, monsters, fight location),
+ * then items the `texts` mention. Table items for the same targets are alternatives, merged into one entry.
+ * Returns [{ name, icon, coveredByHelm, for? }]
+ */
+export function bringItems(table, pages, texts) {
+  const want = new Set(pages.filter(Boolean).map(pageKey));
+  const groups = new Map();
+  for (const { item, targets } of table || []) {
+    const hit = [...new Set(targets.filter((t) => want.has(pageKey(t))))];
+    if (!hit.length) continue;
+    const key = hit.map(pageKey).sort().join();
+    const g = groups.get(key);
+    if (g) g.name += ` / ${item.name}`;
+    else groups.set(key, { name: item.name, icon: item.icon, coveredByHelm: HELM_PART.test(item.name), for: hit.join(', ') });
+  }
+  const found = [...groups.values()];
+  const names = found.flatMap((g) => g.name.toLowerCase().split(' / '));
+  return [...found, ...requiredItems(...texts).filter((i) => !names.some((n) => n.startsWith(i.name.toLowerCase())))];
+}
+
+export const STYLE_LABEL = { melee: 'Melee', ranged: 'Ranged', magic: 'Magic' };
+/** Matches gear tab names ("Magic (Barrage)", "Ranged - Low Risk", "Mage") of a style */
+export const STYLE_TAB = { melee: /melee/i, ranged: /rang/i, magic: /mag/i };
+// Style a sheet method names in its qualifier, e.g. "Abyssal Demon (Catacombs -- Barrage)"
+const METHOD_STYLE = [['magic', /barrage|burst|magic/i], ['ranged', /cannon|venator|bow|chin|ranged/i], ['melee', /melee/i]];
+
+/**
+ * Combat style to fight with: the one the sheet method names, else the monster's clearly lowest defence, else melee.
+ * Returns { style: 'melee' | 'ranged' | 'magic', why }
+ */
+export function recommendStyle(variant, monster) {
+  const qualifier = (variant || '').match(/\(([^)]*)\)/)?.[1] || '';
+  const named = METHOD_STYLE.find(([, re]) => re.test(qualifier));
+  if (named) return { style: named[0], why: 'the chosen method uses it' };
+  const d = monster?.defences || {};
+  const defs = [['melee', Math.min(...[d.Stab, d.Slash, d.Crush].filter(Number.isFinite))], ['ranged', d.Ranged], ['magic', d.Magic]]
+    .filter(([, v]) => Number.isFinite(v)).sort((a, b) => a[1] - b[1]);
+  if (defs.length > 1 && defs[defs.length - 1][1] - defs[0][1] >= 15) {
+    return { style: defs[0][0], why: `lowest defence: ${defs.map(([s, v]) => `${STYLE_LABEL[s]} ${v}`).join(', ')}` };
+  }
+  return { style: 'melee', why: 'no defence weakness, melee is the usual Slayer style' };
 }
 
 export function prayerFor(attackStyle) {

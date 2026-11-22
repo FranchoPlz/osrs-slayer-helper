@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { imgUrl, itemOf, mapTiles, parseMasterPage, placeEntrance } from '../src/lib/wikiparse.js';
-import { transportOptions } from '../src/lib/advice.js';
+import { imgUrl, itemOf, mapTiles, parseInventory, parseMasterPage, parseRecommendedEquipment, parseSlayerEquipment, placeEntrance } from '../src/lib/wikiparse.js';
+import { bringItems, recommendStyle, transportOptions } from '../src/lib/advice.js';
 
 const MASTER_TABLE = `{| class="wikitable sortable" style="text-align:center;"
 !Monster
@@ -147,5 +147,67 @@ describe('transportOptions', () => {
   test('does not turn minigame or home teleports into destinations', () => {
     const r = transportOptions('Use the Soul Wars Minigame Teleport or the Lumbridge Home Teleport.');
     expect(r.map((x) => x.label)).toEqual(['Minigame teleport']);
+  });
+});
+
+describe('gear and inventory', () => {
+  test('names gear sets after their <tabber> tab, else their style', () => {
+    const wt = '<tabber>\n|-|\nMelee=\n{{Recommended equipment\n|style = Melee\n|head1 = {{plink|Slayer helmet (i)}}\n}}\n|-|\nMelee (Hallowfell)=\n{{Recommended equipment\n|style = Melee\n|weapon1 = {{plink|Hallowfell}}\n}}\n</tabber>\n{{Recommended equipment\n|style = Ranged\n|ammo1 = {{plink|Amethyst arrow}}\n}}';
+    expect(parseRecommendedEquipment(wt).map((s) => s.style)).toEqual(['Melee', 'Melee (Hallowfell)', 'Ranged']);
+  });
+
+  test('reads {{Inventory}} slots, counting repeats and quantities, skipping templates', () => {
+    const wt = '{{Inventory|align=right\n|1= Prayer potion(4)\n|2= Prayer potion(4)\n|3= {{Cheap food}}\n|10= Fire rune\\1000\n|27= Rock hammer\n}}';
+    expect(parseInventory(wt)).toEqual([
+      { name: 'Prayer potion(4)', icon: 'Prayer potion(4).png', count: 2 },
+      { name: 'Fire rune', icon: 'Fire rune.png', count: 1000 },
+      { name: 'Rock hammer', icon: 'Rock hammer.png', count: 1 },
+    ]);
+  });
+
+  const TABLE = parseSlayerEquipment(`{| class="wikitable"
+! {{SCP|Slayer}} Level
+! colspan="2" | Item
+! Cost
+! class="unsortable" | Use(s)
+|-
+| 75
+| {{plinkt|Rock hammer}}
+| 500 coins
+| Finishing off [[Gargoyle]]s
+|-
+| 75
+| {{plinkt|Rock thrownhammer}}
+| 200 coins
+| Finishing off [[Gargoyle]]s (one per gargoyle)
+|-
+| 10
+| {{plinkt|Facemask}}
+| 200 coins
+|
+* Protecting against the [[Smoke Dungeon]], and [[Dust devil]]s
+|-
+| 44
+| {{plinkt|Boots of stone}}
+| 200 coins
+| Protecting from the heat of the [[Karuulm Slayer Dungeon]]
+|}`);
+
+  test('brings the Slayer equipment a task needs, alternatives merged, plus items the text names', () => {
+    expect(bringItems(TABLE, ['Gargoyles'], ['Bring a salve amulet'])).toEqual([
+      { name: 'Rock hammer / Rock thrownhammer', icon: 'Rock hammer.png', coveredByHelm: false, for: 'Gargoyle' },
+      { name: 'Salve amulet', icon: 'Salve amulet(ei).png', coveredByHelm: false },
+    ]);
+    expect(bringItems(TABLE, ['Dust devils'], ['wear a facemask'])).toEqual([{ name: 'Facemask', icon: 'Facemask.png', coveredByHelm: true, for: 'Dust devil' }]);
+    expect(bringItems(TABLE, ['Wyrms', 'Karuulm Slayer Dungeon'], []).map((i) => i.name)).toEqual(['Boots of stone']);
+    expect(bringItems(TABLE, ['Wyrms', 'Wyrmscraig'], [])).toEqual([]);
+  });
+
+  test('recommends the style the method names, else a clearly lowest defence, else melee', () => {
+    const demon = { defences: { Stab: 20, Slash: 20, Crush: 20, Magic: 0, Ranged: 20 } };
+    expect(recommendStyle('Abyssal Demon (Catacombs -- Melee)', demon).style).toBe('melee');
+    expect(recommendStyle('Abyssal Demon (Slayer Tower)', demon).style).toBe('magic');
+    expect(recommendStyle('Magic Axe', { defences: { Stab: 0, Slash: 0, Crush: 0, Magic: 0, Ranged: 0 } }).style).toBe('melee');
+    expect(recommendStyle('Hydra (Karuulm)', { defences: { Stab: 160, Slash: 160, Crush: 160, Magic: 160, Ranged: 0 } }).style).toBe('ranged');
   });
 });

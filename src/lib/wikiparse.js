@@ -319,6 +319,7 @@ export function parseTaskPage(wt, title) {
 
   out.gearTiers = parseRecommendedEquipment(body);
   out.inventory = sectionText(body, /^inventory/i, 1200);
+  out.inventoryItems = parseInventory(body);
 
   // Variants + locations tables
   for (const tbl of parseTables(body)) {
@@ -472,10 +473,13 @@ export function itemOf(raw) {
   return { name, icon: page ? `${page[0].toUpperCase()}${page.slice(1)}.png` : null };
 }
 
-/** Returns [{ style, slots: { head: [{ name, icon }, ...best to cheapest], ... } }] */
+/** Returns [{ style, slots: { head: [{ name, icon }, ...best to cheapest], ... } }]; style is the <tabber> tab name when there is one */
 export function parseRecommendedEquipment(wt) {
   const sets = [];
+  let prev = 0;
   for (const tpl of findTemplates(wt, 'Recommended equipment')) {
+    const tab = [...wt.slice(prev, tpl.start).matchAll(/\|-\|\s*\n\s*([^=\n{|]+?)\s*=/g)].pop()?.[1];
+    prev = tpl.end;
     const { named } = templateParams(tpl.inner);
     const slots = {};
     for (const s of RE_SLOTS) {
@@ -488,9 +492,41 @@ export function parseRecommendedEquipment(wt) {
       }
       if (tiers.length) slots[s] = tiers;
     }
-    if (Object.keys(slots).length) sets.push({ style: toPlain(named.style || 'Recommended'), slots });
+    if (Object.keys(slots).length) sets.push({ style: toPlain(tab || named.style || 'Recommended'), slots });
   }
   return sets;
+}
+
+/** `more` gear sets appended to `sets`, minus ones already there (task and strategies pages often share them) */
+export const addSets = (sets, more) => [...sets, ...more.filter((m) => !sets.some((s) => JSON.stringify(s.slots) === JSON.stringify(m.slots)))];
+
+/** Plain items of the first {{Inventory}} on a page, in slot order: [{ name, icon, count }]. A slot is "Item" or "Item\quantity". */
+export function parseInventory(wt) {
+  const tpl = findTemplates(wt, 'Inventory')[0];
+  if (!tpl) return [];
+  const { named, positional } = templateParams(tpl.inner);
+  const slots = Object.keys(named).filter((k) => /^\d+$/.test(k)).sort((a, b) => a - b).map((k) => named[k]);
+  const out = new Map();
+  for (const slot of [...slots, ...positional]) {
+    const [name, qty] = slot.split('\\').map((s) => s.trim());
+    if (name && !/[{[]/.test(name)) out.set(name, { name, icon: `${name}.png`, count: (out.get(name)?.count || 0) + (Number(qty) || 1) });
+  }
+  return [...out.values()];
+}
+
+/** The "Slayer equipment" page table: [{ item: { name, icon }, targets: [pages linked in its Use(s) cell] }] */
+export function parseSlayerEquipment(wt) {
+  const tbl = parseTables(wt).find((t) => t.header.some((h) => /^use/i.test(toPlain(h))));
+  return (tbl?.rows || []).map((r) => ({
+    item: itemOf(r[1] || ''),
+    targets: [...r[r.length - 1].matchAll(/\[\[([^\]|#]+)/g)].map((m) => m[1].trim()),
+  })).filter((e) => e.item.name && e.targets.length);
+}
+
+/** Wiki strategy pages that may hold gear for a task: its own name's, then its monster's (not variants': those are often bosses) */
+export function strategyPageCandidates(task) {
+  const names = [task.title?.replace(/^Slayer task\//, ''), task.monsterPage];
+  return [...new Set(names.filter(Boolean).map((n) => `${n[0].toUpperCase()}${n.slice(1)}/Strategies`))];
 }
 
 /**

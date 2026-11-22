@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { API, fetchWikitext, fetchImageWidths, parseTaskPage, parseMonsterPage, parseRecommendedEquipment, placeEntrance, sectionText, taskPageCandidates, monsterPageCandidates, toPlain, splitSections } from './lib/wikiparse.js';
+import { API, fetchWikitext, fetchImageWidths, parseTaskPage, parseMonsterPage, parseRecommendedEquipment, placeEntrance, sectionText, taskPageCandidates, monsterPageCandidates, toPlain, splitSections, addSets, parseInventory, strategyPageCandidates } from './lib/wikiparse.js';
 
 const KEY = 'slayer-helper:settings:v1';
 
@@ -84,23 +84,27 @@ export async function liveLookup(name, hintPage) {
   } else {
     const mp = monsterPageCandidates(name).map((c) => first[c]).find(Boolean);
     if (!mp) throw new Error(`Nothing found on the Wiki for "${name}"`);
-    result = { title: mp.title, intro: toPlain(splitSections(mp.wikitext)[0].body).slice(0, 1500), strategy: '', equipment: [], gearTiers: [], variants: [], locations: [], monsterPage: mp.title };
+    result = { title: mp.title, intro: toPlain(splitSections(mp.wikitext)[0].body).slice(0, 1500), strategy: '', equipment: [], gearTiers: [], inventoryItems: [], variants: [], locations: [], monsterPage: mp.title };
   }
-  const second = await fetchWikitext([result.monsterPage, `${result.monsterPage}/Strategies`]);
+  const stratCands = taskHit ? strategyPageCandidates(result) : [`${result.monsterPage}/Strategies`];
+  const second = await fetchWikitext([result.monsterPage, ...stratCands]);
   const mp = second[result.monsterPage];
   if (mp) result.monster = parseMonsterPage(mp.wikitext, mp.title);
   if (result.monster?.image) {
     const w = await fetchImageWidths([result.monster.image.file]).catch(() => ({}));
     result.monster.image.w = w[result.monster.image.file];
   }
-  const sp = second[`${result.monsterPage}/Strategies`];
+  const sp = stratCands.map((c) => second[c]).find(Boolean);
   if (sp) {
     result.strategiesTitle = sp.title;
-    result.gearTiers = [...(result.gearTiers || []), ...parseRecommendedEquipment(sp.wikitext)];
+    result.gearTiers = addSets(result.gearTiers || [], parseRecommendedEquipment(sp.wikitext));
     result.inventory ||= sectionText(sp.wikitext, /^inventory/i, 1200);
+    if (!result.inventoryItems?.length) result.inventoryItems = parseInventory(sp.wikitext);
     const more = sectionText(sp.wikitext, /strateg|mechanic|fight/i, 3000);
     if (more) result.strategy = [result.strategy, more].filter(Boolean).join('\n\n');
   }
+  const ms = mp && sectionText(mp.wikitext, /^strateg/i, 2000);
+  if (ms) result.strategy = [result.strategy, ms].filter(Boolean).join('\n\n');
   result.liveAt = new Date().toISOString();
   try { localStorage.setItem(LIVE + name, JSON.stringify(result)); } catch { /* quota */ }
   return result;

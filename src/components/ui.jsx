@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { imgUrl, isSurface, mapTiles, wikiUrl, placePage } from '../lib/wikiparse.js';
-import { tierFor, locationMatches, transportOptions } from '../lib/advice.js';
+import { STYLE_TAB, tierFor, locationMatches, transportOptions } from '../lib/advice.js';
 import { ICON, SLOT_IMG } from '../lib/icons.js';
 import { livePlace, mapVersion } from '../store.js';
 
@@ -243,14 +243,9 @@ export function EquipGrid({ items }) {
 const StyleTabs = ({ names, tab, setTab }) =>
   names.length > 1 ? <div className="tabs">{names.map((n, i) => <button key={i} className={i === tab ? 'on' : ''} onClick={() => setTab(i)}>{n}</button>)}</div> : null;
 
-/** Combat style a sheet method implies, to open the matching gear tab */
-const styleOf = (variant) =>
-  /barrage|burst|magic|trident|sang|shadow|surge|wave|spell/i.test(variant || '') ? 'magic'
-    : /cannon|rang|bow|chin|blowpipe|dart|thrown|knife/i.test(variant || '') ? 'ranged' : 'melee';
-
-/** The budget pick from each slot's tier list, laid out as worn equipment */
-export function GearPick({ sets, budget, variant }) {
-  const preferred = Math.max(0, sets.findIndex((s) => s.style.toLowerCase().includes(styleOf(variant))));
+/** The budget pick from each slot's tier list, laid out as worn equipment; opens on the tab of `style` (melee/ranged/magic) */
+export function GearPick({ sets, budget, style }) {
+  const preferred = Math.max(0, sets.findIndex((s) => STYLE_TAB[style]?.test(s.style)));
   const [tab, setTab] = useState(preferred);
   const set = sets[Math.min(tab, sets.length - 1)];
   const items = Object.fromEntries(Object.entries(set.slots).map(([s, tiers]) => [s, tiers[tierFor(budget, tiers.length)]]));
