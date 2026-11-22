@@ -49,8 +49,8 @@ npm test          # bun test: parsing, Mortimer rules, offer ranking
 
 First install (as root on Mikasa): `bash deploy/install.sh`
 
-Update later:
+Update later, as `mikasa` (no password: `/etc/sudoers.d/osrs-slayer` allows exactly these two commands):
 
 ```sh
-sudo -u osrs git -C /opt/osrs_slayer pull && sudo systemctl restart osrs-slayer
+sudo -u osrs git -C /opt/osrs_slayer pull --ff-only && sudo systemctl restart osrs-slayer
 ```
